@@ -2,3 +2,7 @@ PySide6>=6.5
 pyqtgraph>=0.13
 numpy>=1.22
 pyusb>=1.2
+# Bundles a prebuilt libusb-1.0 for Windows/macOS/Linux (incl. aarch64 / Pi),
+# so the USB backend works without a system libusb install. Optional but
+# recommended — the app falls back to a system libusb if it is missing.
+libusb-package>=1.0.26.2

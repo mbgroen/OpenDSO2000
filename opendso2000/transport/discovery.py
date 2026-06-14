@@ -8,7 +8,7 @@ from typing import List, Optional
 from ..scope.models import DSO2000_PID, DSO2000_VID
 from .base import Transport
 from .simulated import SimulatedTransport
-from .usbtmc import UsbTmcTransport
+from .usbtmc import UsbTmcTransport, get_backend
 
 try:
     import usb.core
@@ -31,7 +31,11 @@ def list_devices() -> List[DeviceInfo]:
     if not _HAVE_PYUSB:
         return []
     found: List[DeviceInfo] = []
-    for dev in usb.core.find(find_all=True, idVendor=DSO2000_VID, idProduct=DSO2000_PID):
+    kwargs = dict(find_all=True, idVendor=DSO2000_VID, idProduct=DSO2000_PID)
+    backend = get_backend()
+    if backend is not None:
+        kwargs["backend"] = backend
+    for dev in usb.core.find(**kwargs):
         try:
             serial = usb.util.get_string(dev, dev.iSerialNumber) if dev.iSerialNumber else None
         except Exception:

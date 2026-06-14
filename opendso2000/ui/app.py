@@ -47,6 +47,17 @@ def _set_macos_dock_icon() -> None:
         pass
 
 
+def _set_windows_app_id() -> None:
+    """Give Windows an explicit AppUserModelID so the taskbar uses our icon."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("OpenDSO2000")
+    except Exception:
+        pass
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="opendso2000",
@@ -62,6 +73,7 @@ def parse_args(argv=None) -> argparse.Namespace:
 def main(argv=None) -> int:
     args = parse_args(argv)
 
+    _set_windows_app_id()
     app = QApplication(sys.argv[:1])
     app.setApplicationName("OpenDSO2000")
     app.setApplicationDisplayName("OpenDSO2000")

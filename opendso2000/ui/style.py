@@ -22,7 +22,7 @@ QSS = f"""
 QMainWindow, QWidget {{
     background: {PANEL_BG};
     color: {TEXT};
-    font-family: -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+    font-family: -apple-system, "Segoe UI", "Noto Sans", "DejaVu Sans", "Helvetica Neue", sans-serif;
     font-size: 12px;
 }}
 QGroupBox {{
@@ -67,7 +67,7 @@ QComboBox QAbstractItemView {{
     color: {TEXT};
 }}
 QLabel#valueLabel {{
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-family: "SF Mono", "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
     font-size: 13px;
     color: {TEXT};
 }}

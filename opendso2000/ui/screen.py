@@ -35,7 +35,7 @@ def _chip(text: str, color: str = TEXT, bg: str = "#1a2029") -> QLabel:
     lab = QLabel(text)
     lab.setStyleSheet(
         f"color:{color}; background:{bg}; border-radius:3px; padding:2px 6px;"
-        f" font-family:'SF Mono','Menlo','Consolas',monospace; font-size:11px;")
+        f" font-family:'SF Mono','Menlo','Consolas','DejaVu Sans Mono',monospace; font-size:11px;")
     return lab
 
 
@@ -48,7 +48,7 @@ class MeasureTable(QFrame):
         self.setStyleSheet(
             "#measTable { background: rgba(6,11,16,0.90); border:1px solid #3a4658;"
             " border-radius:6px; }"
-            " QLabel { font-family:'SF Mono','Menlo','Consolas',monospace; font-size:11px; }")
+            " QLabel { font-family:'SF Mono','Menlo','Consolas','DejaVu Sans Mono',monospace; font-size:11px; }")
         grid = QGridLayout(self)
         grid.setContentsMargins(10, 7, 10, 7)
         grid.setHorizontalSpacing(14)
@@ -180,7 +180,7 @@ class ScreenPanel(QWidget):
         for ch in (1, 2):
             lab = QLabel(f"CH{ch}  —")
             lab.setStyleSheet(
-                f"color:{CH_COLORS[ch]}; font-family:'SF Mono','Menlo',monospace;"
+                f"color:{CH_COLORS[ch]}; font-family:'SF Mono','Menlo','DejaVu Sans Mono',monospace;"
                 f" font-size:11px;")
             self._meas[ch] = lab
             lay.addWidget(lab)

@@ -15,7 +15,8 @@ These instruments are **not** the EZ-USB FX2 PC scopes that
 benchtop units that expose a **USB-TMC / SCPI** interface (USB id `049f:505e`),
 so they need a completely different client — which is what this project is.
 
-Runs on **macOS (Intel & Apple Silicon)** and **Linux**.
+Runs on **macOS** (Intel & Apple Silicon), **Linux** (x86-64 & ARM, incl.
+**Raspberry Pi**), and **Windows**.
 
 > **Status:** functionally complete against the published *DSO2000 Series SCPI
 > Programmers Manual*, with a built-in simulator so it runs without hardware.
@@ -52,26 +53,67 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+`requirements.txt` pulls in `libusb-package`, which bundles a prebuilt
+libusb-1.0 for Windows, macOS and Linux (incl. aarch64), so in most cases **no
+system libusb install is needed**. The platform notes below cover the
+exceptions (device permissions on Linux, the WinUSB driver on Windows).
+
 ### Platform notes
 
 **macOS (Intel / Apple Silicon)**
 
-```bash
-brew install libusb        # USB backend for pyusb
-```
+PySide6 ships native arm64 + x86_64 wheels and libusb is bundled, so
+`pip install -r requirements.txt` is all you need. (If you prefer the system
+libusb: `brew install libusb`.)
 
-PySide6 ships native arm64 + x86_64 wheels, so the same install works on both.
-
-**Linux**
+**Linux (x86-64)**
 
 ```bash
-sudo apt install libusb-1.0-0        # or your distro's equivalent
 # Grant USB access without root:
 sudo cp packaging/99-opendso2000.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Make sure your user is in the `plugdev` group, then replug the scope.
+Add yourself to the `plugdev` group (`sudo usermod -aG plugdev $USER`), then
+log out/in and replug the scope. If a PySide6 wheel isn't available for your
+distro, install it from the system packages: `sudo apt install python3-pyside6`.
+
+**Raspberry Pi / Linux on ARM**
+
+```bash
+# Qt + scientific stack from the distro (most reliable on Pi OS / Debian):
+sudo apt install python3-pyside6 python3-pyqtgraph python3-numpy python3-pyusb libusb-1.0-0
+# then, in a venv created with --system-site-packages, or system-wide:
+pip install libusb-package        # optional; apt's libusb-1.0-0 also works
+
+# USB permissions (same udev rule as above):
+sudo cp packaging/99-opendso2000.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+PyPI does not always have an `aarch64` PySide6 wheel, so the distro package
+(`python3-pyside6`) is the safest route on a Pi. A Pi 4/5 (or any board with a
+desktop) is recommended — the live display is GPU-light but Qt needs a desktop
+session (X11/Wayland). Note the SCPI waveform fetch is slow, so very deep
+records refresh at a modest rate.
+
+**Windows**
+
+```bat
+py -m venv .venv & .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Windows has no generic USB-TMC driver that libusb can claim, so you must bind
+the scope to **WinUSB** once, using [Zadig](https://zadig.akeo.ie/):
+
+1. Plug in the scope and run Zadig.
+2. *Options ▸ List All Devices*, then select the DSO2000 (USB id `049F:505E`).
+3. Choose the **WinUSB** driver and click *Replace/Install Driver*.
+
+After that, `py -m opendso2000` finds the scope. (Installing the WinUSB driver
+means NI-VISA/other VISA tools won't see the device until you revert the driver
+in Device Manager — only one USB driver can own it at a time.)
 
 ## Run
 

@@ -30,6 +30,21 @@ except Exception:  # pragma: no cover - environment without pyusb/libusb
     _HAVE_PYUSB = False
 
 
+def get_backend():
+    """Return a libusb backend, preferring the bundled ``libusb-package``.
+
+    ``libusb-package`` ships a prebuilt libusb-1.0 for Windows, macOS and Linux
+    (incl. aarch64 / Raspberry Pi), so the USB layer works without the user
+    installing a system libusb.  If it is not present we return ``None`` and
+    PyUSB falls back to a system-installed libusb.
+    """
+    try:
+        import libusb_package
+        return libusb_package.get_libusb1_backend()
+    except Exception:
+        return None
+
+
 # USB-TMC bMsgID values.
 _MSGID_DEV_DEP_MSG_OUT = 1
 _MSGID_REQUEST_DEV_DEP_MSG_IN = 2
@@ -83,6 +98,9 @@ class UsbTmcTransport(Transport):
             if self._dev is not None:
                 return
             kwargs = dict(idVendor=self._vid, idProduct=self._pid)
+            backend = get_backend()
+            if backend is not None:
+                kwargs["backend"] = backend
             dev = usb.core.find(**kwargs)
             if dev is None:
                 raise TransportError(
