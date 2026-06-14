@@ -1,0 +1,9 @@
+# Udev rule granting non-root access to the DSO2000-series scopes.
+# These instruments enumerate with a borrowed Compaq VID (049f:505e).
+#
+# Install:
+#   sudo cp packaging/99-opendso2000.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# Then replug the scope. Ensure your user is in the 'plugdev' group.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="049f", ATTRS{idProduct}=="505e", MODE="0660", GROUP="plugdev", TAG+="uaccess"

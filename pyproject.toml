@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opendso2000"
+version = "0.1.0"
+description = "Cross-platform control software for Hantek DSO2C10/2C15/2D10/2D15 oscilloscopes"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "OpenDSO2000 contributors" }]
+dependencies = [
+    "PySide6>=6.5",
+    "pyqtgraph>=0.13",
+    "numpy>=1.22",
+    "pyusb>=1.2",
+]
+
+[project.scripts]
+opendso2000 = "opendso2000.ui.app:main"
+
+[tool.setuptools]
+packages = [
+    "opendso2000",
+    "opendso2000.transport",
+    "opendso2000.scope",
+    "opendso2000.ui",
+]
+
+[tool.setuptools.package-data]
+opendso2000 = ["res/*.svg", "res/*.png", "res/*.icns", "res/*.ico"]
