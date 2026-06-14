@@ -18,9 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14          # Apple Silicon
+          - os: macos-latest          # Apple Silicon
             label: macOS-arm64
-          - os: macos-13          # Intel
+          - os: macos-15-intel          # Intel
             label: macOS-x86_64
           - os: windows-latest
             label: Windows-x64
