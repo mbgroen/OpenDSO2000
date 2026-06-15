@@ -49,6 +49,9 @@ class MenuController:
         self._persist = False
         # Set by MainWindow; called when the user picks Utility ▸ Device.
         self.on_change_device: Optional[Callable[[], None]] = None
+        # Max-FPS control (Utility ▸ Max FPS). MainWindow owns the real value.
+        self.on_set_fps: Optional[Callable[[int], None]] = None
+        self.fps: int = 30
 
         self._builders: Dict[str, Callable[[], Menu]] = {
             "CH1": lambda: self._channel_menu(1),
@@ -365,8 +368,15 @@ class MenuController:
         def change_device():
             if self.on_change_device:
                 self.on_change_device()
+
+        def cycle_fps():
+            presets = [5, 10, 15, 20, 30, 60]
+            self.fps = self._cycle(self.fps if self.fps in presets else 30, presets)
+            if self.on_set_fps:
+                self.on_set_fps(self.fps)
         return Menu("Utility", [
             MenuItem("Device", lambda: "", change_device),
+            MenuItem("Max FPS", lambda: str(self.fps), cycle_fps),
             MenuItem("Self-cal", lambda: "", self_cal),
             MenuItem("System", lambda: self._scope.spec.name, None),
         ])

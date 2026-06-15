@@ -24,6 +24,12 @@ class AcquisitionWorker(QObject):
         self._scope = scope
         self._running = False
         self._single = False
+        self._frame_interval_ms = 33      # ~30 fps; see set_target_fps()
+
+    def set_target_fps(self, fps: int) -> None:
+        """Pace the producer; lower fps cuts CPU and VNC/remote bandwidth."""
+        fps = max(1, min(int(fps), 120))
+        self._frame_interval_ms = max(1, round(1000 / fps))
 
     def start_continuous(self) -> None:
         self._running = True
@@ -53,7 +59,7 @@ class AcquisitionWorker(QObject):
             except Exception as exc:  # keep the loop alive on transient errors
                 self.error.emit(str(exc))
                 QThread.msleep(200)
-            # Cap the frame rate (~30 fps). On real hardware the USB read is the
+            # Cap the frame rate. On real hardware the USB read is the
             # bottleneck anyway; on the simulator this stops us from pegging the
-            # CPU and flooding the GUI thread on low-power machines (Pi).
-            QThread.msleep(33)
+            # CPU and flooding the GUI thread on low-power machines (Pi / VNC).
+            QThread.msleep(self._frame_interval_ms)

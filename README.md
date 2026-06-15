@@ -127,6 +127,21 @@ python -m opendso2000 --simulate --model DSO2D15
 
 If no device is found the app falls back to the simulator automatically.
 
+## Performance / remote display (VNC)
+
+The live trace is drawn by Qt's CPU renderer, so on low-power machines
+(Raspberry Pi) and especially over **VNC** the constantly-changing waveform can
+feel sluggish — VNC has to re-encode and stream the moving region every frame,
+which both adds latency and steals CPU from the app.
+
+- The app already downsamples traces to screen resolution and caps the refresh
+  rate (default 30 fps).
+- Lower the cap to cut CPU/bandwidth further: set `OPENDSO2000_MAX_FPS` (e.g.
+  `OPENDSO2000_MAX_FPS=12 python -m opendso2000`) or change it live in
+  **Utility ▸ Max FPS** (5/10/15/20/30/60).
+- For the smoothest result on a Pi, use a **local HDMI display** rather than
+  VNC; if you must use VNC, also lower its resolution / colour depth / quality.
+
 ## Architecture
 
 ```

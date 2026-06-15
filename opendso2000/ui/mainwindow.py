@@ -7,6 +7,7 @@ device: section buttons open soft-key menus, knobs adjust values.
 
 from __future__ import annotations
 
+import os
 import time
 
 from PySide6.QtCore import Qt, QThread, QTimer
@@ -35,6 +36,8 @@ class MainWindow(QWidget):
         # Set by Utility ▸ Device to ask app.main to reopen the device picker.
         self.switch_requested = False
         self._last_paint = 0.0          # render-throttle timestamp
+        # Max refresh rate. Override with OPENDSO2000_MAX_FPS (e.g. 12 over VNC).
+        self._target_fps = self._initial_fps()
         self.setWindowTitle(f"OpenDSO2000 — {scope.spec.name}")
         # Default to a size that fits a 14" MacBook Pro (≈1512×982 pt) with the
         # menu bar; the layout can shrink further and the panel scrolls.
@@ -49,6 +52,8 @@ class MainWindow(QWidget):
         self._menus = MenuController(self._scope, self._view, self._bar,
                                      self._math, self._cursors, self._screen)
         self._menus.on_change_device = self._request_switch_device
+        self._menus.on_set_fps = self._apply_fps
+        self._menus.fps = self._target_fps
         self._front = FrontPanel(self._scope, self._view, self._menus, {
             "run_toggle": self._on_run_toggle,
             "single": self._on_single,
@@ -89,8 +94,23 @@ class MainWindow(QWidget):
         self._worker.frameReady.connect(self._on_frame)
         self._worker.statusChanged.connect(self._screen.set_trigger_status)
         self._worker.error.connect(lambda m: self._screen.set_trigger_status("ERR"))
+        self._worker.set_target_fps(self._target_fps)
         self._worker.start_continuous()
         self._thread.start()
+
+    @staticmethod
+    def _initial_fps() -> int:
+        try:
+            return max(1, min(int(os.environ.get("OPENDSO2000_MAX_FPS", "30")), 120))
+        except ValueError:
+            return 30
+
+    def _apply_fps(self, fps: int):
+        """Set the max refresh rate (render throttle + acquisition pacing)."""
+        self._target_fps = max(1, min(int(fps), 120))
+        self._menus.fps = self._target_fps
+        if hasattr(self, "_worker"):
+            self._worker.set_target_fps(self._target_fps)
 
     def _start_measure_timer(self):
         self._mtimer = QTimer(self)
@@ -103,7 +123,7 @@ class MainWindow(QWidget):
         # dropped from rendering (the next one is always more recent), which
         # keeps the GUI responsive on slow displays like the Raspberry Pi.
         now = time.monotonic()
-        if now - self._last_paint < 0.033:
+        if now - self._last_paint < 1.0 / self._target_fps:
             return
         self._last_paint = now
         self._view.update_frame(wf)
