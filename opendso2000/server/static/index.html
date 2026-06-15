@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>OpenDSO2000</title>
+  <link rel="icon" href="/api/icon">
+  <link rel="stylesheet" href="/static/style.css?v=3">
+</head>
+<body>
+  <!-- Connect dialog -->
+  <div id="picker" class="overlay">
+    <div class="dialog">
+      <h2>OpenDSO2000</h2>
+      <p class="dim">Select an instrument to connect to:</p>
+      <ul id="device-list" class="device-list"></ul>
+      <div class="row">
+        <span id="picker-status" class="dim"></span>
+        <span class="spacer"></span>
+        <button id="refresh-btn">Refresh USB</button>
+        <button id="connect-btn" class="primary">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <!-- Screen -->
+    <div class="screen-wrap">
+      <div class="statusbar">
+        <span class="logo">OpenDSO2000</span>
+        <span id="trig-chip" class="chip ok">AUTO</span>
+        <span class="spacer"></span>
+        <span id="tb-chip" class="chip">H —</span>
+        <span id="srate-chip" class="chip">—</span>
+        <span id="depth-chip" class="chip">—</span>
+      </div>
+      <div class="canvas-host">
+        <canvas id="scope"></canvas>
+        <div id="meas-table" class="meas-table hidden"></div>
+      </div>
+      <div class="infobar">
+        <span id="ch1-info" class="chip"></span>
+        <span id="ch2-info" class="chip"></span>
+        <span id="math-info" class="chip math">Math off</span>
+        <span class="spacer"></span>
+        <span id="cursor-readout" class="mono"></span>
+      </div>
+      <div id="meas-strip" class="meas-strip"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <div class="toolbar">
+        <button id="run-btn" class="run">Run</button>
+        <button id="single-btn">Single</button>
+        <button id="auto-btn">Auto Set</button>
+        <button id="force-btn">Force</button>
+        <button id="device-btn">Device…</button>
+      </div>
+      <div id="sections"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=3"></script>
+</body>
+</html>

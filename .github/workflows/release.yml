@@ -125,7 +125,12 @@ jobs:
           body: |
             ## OpenDSO2000 ${{ github.ref_name }}
 
-            Standalone builds — download the file for your platform, no Python needed.
+            **Client/server web app.** The downloaded binary is the *server* — it
+            connects to the scope over USB and serves a browser UI. Run it on the
+            machine attached to the scope (e.g. a Raspberry Pi), then open the
+            printed URL in a browser on any device on the network. No Python needed.
+
+            Run the server binary on the scope host:
 
             | Platform | File |
             |----------|------|
@@ -135,12 +140,16 @@ jobs:
             | Linux (x86-64) | `OpenDSO2000-Linux-x86_64.AppImage` |
             | Linux (ARM64 / Raspberry Pi) | `OpenDSO2000-Linux-aarch64.AppImage` |
 
+            Double-clicking opens the UI locally; from another device browse to
+            `http://<server-ip>:8000/`.
+
             ### Notes
-            - **macOS**: the app is unsigned, so on first launch right-click → **Open**
-              (or run `xattr -dr com.apple.quarantine OpenDSO2000.app`).
-            - **Windows**: to talk to the scope you must bind it to **WinUSB** once with
-              [Zadig](https://zadig.akeo.ie/) (USB id `049F:505E`). It runs in simulator
-              mode without that.
-            - **Linux**: `chmod +x` the AppImage. It may need `libfuse2`
-              (`sudo apt install libfuse2`), or run with `--appimage-extract-and-run`.
-            - No hardware? Launch and pick a **Simulator** entry in the device dialog.
+            - **macOS**: unsigned — on first launch right-click → **Open**
+              (or `xattr -dr com.apple.quarantine OpenDSO2000.app`).
+            - **Windows**: to talk to the scope, bind it to **WinUSB** once with
+              [Zadig](https://zadig.akeo.ie/) (USB id `049F:505E`). Simulator works
+              without that.
+            - **Linux**: `chmod +x` the AppImage; it may need `libfuse2`
+              (`sudo apt install libfuse2`) or `--appimage-extract-and-run`.
+            - No hardware? Pick a **Simulator** entry in the connect dialog.
+            - Set `OPENDSO2000_TOKEN` to require a shared secret for access.
