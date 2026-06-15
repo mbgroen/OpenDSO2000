@@ -7,6 +7,8 @@ device: section buttons open soft-key menus, knobs adjust values.
 
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import Qt, QThread, QTimer
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QWidget
 
@@ -32,6 +34,7 @@ class MainWindow(QWidget):
         self._scope = scope
         # Set by Utility ▸ Device to ask app.main to reopen the device picker.
         self.switch_requested = False
+        self._last_paint = 0.0          # render-throttle timestamp
         self.setWindowTitle(f"OpenDSO2000 — {scope.spec.name}")
         # Default to a size that fits a 14" MacBook Pro (≈1512×982 pt) with the
         # menu bar; the layout can shrink further and the panel scrolls.
@@ -96,6 +99,13 @@ class MainWindow(QWidget):
         self._mtimer.start()
 
     def _on_frame(self, wf: Waveform):
+        # Cap on-screen refresh to ~30 fps. Frames that arrive faster are
+        # dropped from rendering (the next one is always more recent), which
+        # keeps the GUI responsive on slow displays like the Raspberry Pi.
+        now = time.monotonic()
+        if now - self._last_paint < 0.033:
+            return
+        self._last_paint = now
         self._view.update_frame(wf)
         result = self._math.compute(wf)
         self._view.show_math(result[0], result[1]) if result else self._view.show_math(None, None)

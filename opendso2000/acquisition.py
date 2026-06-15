@@ -53,4 +53,7 @@ class AcquisitionWorker(QObject):
             except Exception as exc:  # keep the loop alive on transient errors
                 self.error.emit(str(exc))
                 QThread.msleep(200)
-            QThread.msleep(10)
+            # Cap the frame rate (~30 fps). On real hardware the USB read is the
+            # bottleneck anyway; on the simulator this stops us from pegging the
+            # CPU and flooding the GUI thread on low-power machines (Pi).
+            QThread.msleep(33)

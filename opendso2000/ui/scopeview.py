@@ -12,6 +12,9 @@ from typing import Dict, Optional
 
 import numpy as np
 import pyqtgraph as pg
+
+# Keep rendering cheap — matters a lot on software-rendered Qt (Raspberry Pi).
+pg.setConfigOptions(antialias=False, useOpenGL=False)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPen
 
@@ -40,6 +43,9 @@ class ScopeView(pg.GraphicsLayoutWidget):
         self._plot.getAxis("bottom").hide()
         self._plot.getAxis("left").hide()
         self._plot.setClipToView(True)
+        # Reduce thousands of sample points to ~screen width before drawing —
+        # the single biggest rendering win on low-power GPUs / the Pi.
+        self._plot.setDownsampling(mode="peak", auto=True)
 
         self._draw_grid()
 
