@@ -65,7 +65,7 @@ else:
             info_plist={
                 "CFBundleName": "OpenDSO2000",
                 "CFBundleDisplayName": "OpenDSO2000",
-                "CFBundleShortVersionString": "0.3.0",
+                "CFBundleShortVersionString": "0.1.0",
                 "NSHighResolutionCapable": True,
                 "LSBackgroundOnly": False,
             },
