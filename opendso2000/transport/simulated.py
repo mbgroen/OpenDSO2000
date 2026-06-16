@@ -173,12 +173,11 @@ class SimulatedTransport(Transport):
             if c.isdigit():
                 ch = int(c)
                 break
-        scale = float(self._state.get(f":CHANnel{ch}:SCALe", 1.0))
         tdiv = float(self._state.get(":TIMebase:SCALe", 1e-4))
         freq = 3.0 / (14 * tdiv) if tdiv > 0 else 1000.0
         period = 1.0 / freq
-        amp_div = 2.5 if ch == 1 else 1.8
-        vpp = 2 * amp_div * scale
+        amp_volts = 2.5 if ch == 1 else 1.8
+        vpp = 2 * amp_volts
         jit = 1.0 + 0.002 * math.sin(time.time())   # tiny liveliness
         it = item.upper()
         table = {
@@ -243,13 +242,16 @@ class SimulatedTransport(Transport):
             scale = float(self._state.get(f":CHANnel{ch}:SCALe", 1.0))
             offset = float(self._state.get(f":CHANnel{ch}:OFFSet", 0.0))
             phase = 0.0 if ch == 1 else math.pi / 2
-            amp_div = 2.5 if ch == 1 else 1.8     # divisions of amplitude
+            amp_volts = 2.5 if ch == 1 else 1.8     # fixed signal amplitude in volts
             if ch == 2:  # make ch2 a square wave so the two look different
                 sig = np.sign(np.sin(2 * math.pi * freq * t + phase))
             else:
                 sig = np.sin(2 * math.pi * freq * t + phase)
             noise = np.random.normal(0, 0.03, points)
-            codes = ADC_CENTER + (sig * amp_div + noise) * CODES_PER_DIV
+            # Divide by scale so ADC codes represent a fixed-voltage signal.
+            # codes_to_volts will reconstruct the correct volts; drawTrace will
+            # then show more/fewer divisions as volts/div changes — like real hw.
+            codes = ADC_CENTER + (sig * amp_volts / scale + noise) * CODES_PER_DIV
             codes = np.clip(codes, 0, 255).astype(np.uint8)
             blocks.append(codes.tobytes())
 
