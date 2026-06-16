@@ -1,79 +1,44 @@
 # OpenDSO2000
 
-Cross-platform **client/server** control software for the **Hantek
-DSO2000-series** benchtop oscilloscopes:
+Client/server control software for Hantek DSO2000-series oscilloscopes. A server
+connects to the scope over USB (USB-TMC / SCPI) and serves an HTML5 web UI;
+control it from a browser on any device on the network. A built-in simulator
+lets it run with no hardware attached.
 
-| Model    | Bandwidth | Signal generator (AWG) |
-|----------|-----------|------------------------|
-| DSO2C10  | 100 MHz   | no                     |
-| DSO2C15  | 150 MHz   | no                     |
-| DSO2D10  | 100 MHz   | yes (5 MHz, 1 ch)      |
-| DSO2D15  | 150 MHz   | yes (5 MHz, 1 ch)      |
+## Supported hardware
 
-A small **server** connects to the scope over USB (USB-TMC / SCPI, USB id
-`049f:505e`) and serves an **HTML5 web UI**. Open it in any browser on the
-network — so you can run the server on a Raspberry Pi wired to the scope and
-drive it from your Mac, phone, or any other device.
+### Oscilloscopes
 
-These are **not** the EZ-USB FX2 PC scopes that
-[OpenHantek](https://github.com/OpenHantek) supports; they are standalone
-benchtop units needing a completely different client — which is this project.
+| Model    | Bandwidth | Channels | Signal generator (AWG) |
+|----------|-----------|----------|------------------------|
+| DSO2C10  | 100 MHz   | 2        | no                     |
+| DSO2C15  | 150 MHz   | 2        | no                     |
+| DSO2D10  | 100 MHz   | 2        | yes (5 MHz, 1 ch)      |
+| DSO2D15  | 150 MHz   | 2        | yes (5 MHz, 1 ch)      |
 
-Server runs on **macOS** (Intel & Apple Silicon), **Linux** (x86-64 & ARM, incl.
-**Raspberry Pi**), and **Windows**. The client is any modern browser.
+Common: 1 GSa/s real-time sampling, 8 M memory depth. The instruments present a
+USB-TMC interface speaking SCPI and enumerate as USB id `049f:505e`.
 
-> **Status:** functionally complete against the published *DSO2000 Series SCPI
-> Programmers Manual*, with a built-in simulator so it runs without hardware.
-> The 8-bit sample scaling constant (`CODES_PER_DIV` in
-> `opendso2000/scope/waveform.py`) is the one value to confirm against a real
-> scope — see [Hardware calibration](#hardware-calibration).
+### Platforms
 
-## Why client/server
+- **Server:** macOS (Intel & Apple Silicon), Linux x86-64, Linux ARM/aarch64
+  (incl. Raspberry Pi, runs headless), and Windows (x64).
+- **Client:** any modern web browser (desktop or mobile).
 
-Streaming **waveform data** to the browser (which renders locally) is far
-lighter than streaming **pixels** over VNC/remote desktop, so the UI stays
-responsive even with the scope on a low-power Pi. Bonus: clients need no
-install, and you can view from several devices at once.
+## Requirements
 
-## Features
+- A prebuilt binary needs nothing else. To run from source: **Python 3.9+**.
+- Python dependencies: `numpy`, `pyusb`, `libusb-package`, `fastapi`,
+  `uvicorn[standard]`.
+- USB access: a libusb runtime is **bundled** via `libusb-package`. Per-OS
+  device access:
+  - **Linux:** install the udev rule in `packaging/99-opendso2000.rules` and add
+    your user to the `plugdev` group.
+  - **Windows:** bind the scope to the **WinUSB** driver once with
+    [Zadig](https://zadig.akeo.ie/) (USB id `049F:505E`).
+  - **macOS:** none.
 
-- Live dual-channel Canvas display drawn like the instrument's 14×8 division
-  screen (grid, colours, trigger line, cursors)
-- **Vertical:** volts/div, position, coupling (AC/DC/GND), probe ratio,
-  20 MHz bandwidth limit, invert, channel on/off
-- **Horizontal:** time/div, Y-T / X-Y / Roll, memory depth (4 K…8 M),
-  acquisition mode (Normal/Average/Peak/Hi-Res)
-- **Trigger:** all device types — edge, pulse, slope, video, timeout, window,
-  interval, runt, pattern, and serial (UART/CAN/LIN/I²C/SPI) — each with its
-  full per-type parameter set; Auto/Normal/Single sweep; force
-- **Run / Stop / Single / Auto-Set / Force**
-- **Math** (CH1±CH2, ×, ÷) and **FFT** (Hanning/Hamming/Blackman/Rectangle,
-  dBV or Vrms), computed server-side from full-resolution samples
-- **Cursors** (manual X/Y/XY with ΔX, 1/ΔX, ΔY readout)
-- **Measurement table** (Vpp, Vavg, Vrms, Vmax, Vmin, Freq, Period, Duty…)
-- **Pass/Fail mask** (source, X/Y tolerance, create, output)
-- **Zoom / dual-window** (window time-base + position, highlighted on screen)
-- **Protocol decode** — host-side decoding of **UART, I²C, SPI, CAN and LIN**
-  from the captured samples (I²C/SPI use two channels; CAN does NRZ
-  de-stuffing), shown as bytes/ASCII/transactions
-- **Save / Recall** — PNG screenshot, full-resolution **CSV** export, and
-  setup save/load (JSON)
-- **Signal generator** controls on the D-models
-- Adjustable refresh-rate cap (`OPENDSO2000_MAX_FPS`)
-- Built-in **simulator** for every model — no hardware needed
-- Optional access token (`OPENDSO2000_TOKEN`)
-
-### Not available over the DSO2000 SCPI interface
-
-These exist on the instrument's own screen but are **not exposed over SCPI**, so
-no remote client can offer them: **DVM**, **frequency counter**, **reference
-(REF) waveforms**, and **protocol-decode read-back** (the scope decodes
-internally but doesn't return the result). Protocol *triggering* is fully
-supported, and OpenDSO2000 decodes UART/I²C/SPI/CAN/LIN **itself** from the
-captured samples — so decode works regardless. Decode quality depends on
-sample rate vs. bit rate (the panel warns if under-sampled).
-
-## Install (server)
+## Install
 
 Download the binary for your scope host from the
 [Releases](https://github.com/mbgroen/OpenDSO2000/releases) page, or run from
@@ -86,89 +51,139 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-USB backend (libusb) is bundled via `libusb-package`, so no system libusb is
-normally required.
-
-### Platform notes
-
-- **Raspberry Pi / Linux ARM:** runs headless — no desktop needed. Install
-  USB permissions: `sudo cp packaging/99-opendso2000.rules /etc/udev/rules.d/`
-  then `sudo udevadm control --reload-rules && sudo udevadm trigger`, add
-  yourself to `plugdev`, and replug the scope.
-- **Linux x86-64:** same udev rule as above.
-- **Windows:** bind the scope to **WinUSB** once with
-  [Zadig](https://zadig.akeo.ie/) (USB id `049F:505E`); it runs in simulator
-  mode without that.
-- **macOS:** nothing extra; release `.app` is unsigned, so first launch is
-  right-click → **Open**.
-
-## Run
+Linux device permissions:
 
 ```bash
-# On the machine connected to the scope:
-python -m opendso2000                 # serves on http://0.0.0.0:8000/
-python -m opendso2000 --port 9000 --open
+sudo cp packaging/99-opendso2000.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger   # then replug
 ```
 
-Then open `http://<server-ip>:8000/` in a browser on any device, pick your
-instrument (or a **Simulator**) in the connect dialog, and go. The bundled
-binaries do the same — double-click opens the UI locally.
+The release `.app`/`.exe`/`.AppImage` are unsigned; on macOS first launch is
+right-click → Open, and Linux AppImages need `chmod +x` (and possibly
+`libfuse2`).
 
-Useful options / environment:
+## Usage
 
-- `--host` / `--port` — bind address and port
-- `OPENDSO2000_MAX_FPS` — cap refresh rate (also live in the **Max FPS**
-  control); lower it (e.g. `10`) for slow links
-- `OPENDSO2000_TOKEN` — require `?token=…` for access
-
-## Architecture
-
-```
-opendso2000/
-├── transport/        USB-TMC layer (real + simulated) and discovery
-│   ├── usbtmc.py       USB-TMC framing over PyUSB/libusb (bundled libusb)
-│   ├── simulated.py    Fake instrument speaking the same SCPI dialect
-│   └── discovery.py    Enumerate/open devices
-├── scope/            Instrument logic (no GUI, scriptable)
-│   ├── models.py       Model specs + capabilities + USB ids
-│   ├── driver.py       Full SCPI driver (Dso2000)
-│   ├── processing.py   Math/FFT host-side computation
-│   └── waveform.py     :WAVeform:DATA:ALL? decoder
-├── server/           FastAPI app + browser UI
-│   ├── app.py          REST + WebSocket streaming, control dispatch
-│   ├── __main__.py     uvicorn launcher
-│   └── static/         index.html · app.js (Canvas scope) · style.css
-└── res/              App icon assets
+```bash
+python -m opendso2000                    # serve on http://0.0.0.0:8000/
+python -m opendso2000 --port 9000 --open # custom port; open local browser
 ```
 
-The driver has no GUI/web dependency, so it can also be scripted:
+Open `http://<server-ip>:8000/` in a browser, pick an instrument (or a
+simulator) in the connect dialog. Prebuilt binaries behave the same — running
+one starts the server and opens the UI locally.
+
+Options and environment variables:
+
+| Setting | Effect |
+|---------|--------|
+| `--host` / `--port` | bind address / port (default `0.0.0.0:8000`) |
+| `--open` | open the local browser on start |
+| `OPENDSO2000_MAX_FPS` | refresh-rate cap (also adjustable live in the UI) |
+| `OPENDSO2000_TOKEN` | require `?token=…` on connect/WebSocket access |
+
+## Functionality
+
+- Live dual-channel display on a 14×8 division canvas (grid, per-channel
+  colours, trigger level, cursors).
+- **Vertical:** volts/div, position, coupling (AC/DC/GND), probe ratio,
+  20 MHz bandwidth limit, invert, channel on/off.
+- **Horizontal:** time/div, Y-T / X-Y / Roll, memory depth (4 K…8 M),
+  acquisition mode (Normal/Average/Peak/Hi-Res).
+- **Trigger:** edge, pulse, slope, video, timeout, window, interval, runt,
+  pattern, and serial (UART/CAN/LIN/I²C/SPI), each with its full parameter set;
+  Auto/Normal/Single sweep; force.
+- **Run / Stop / Single / Auto-Set / Force.**
+- **Math** (CH1±CH2, ×, ÷) and **FFT** (Hanning/Hamming/Blackman/Rectangle,
+  dBV or Vrms), computed from full-resolution samples.
+- **Cursors** (manual X/Y/XY with ΔX, 1/ΔX, ΔY readout).
+- **Measurement table** (Vpp, Vavg, Vrms, Vmax, Vmin, Freq, Period, Duty, …).
+- **Pass/Fail mask** (source, X/Y tolerance, create, output).
+- **Zoom / dual-window** (window time-base + position).
+- **Protocol decode** — host-side decoding of **UART, I²C, SPI, CAN, LIN** from
+  the captured samples (I²C/SPI use two channels; CAN does NRZ de-stuffing,
+  standard + extended IDs). Accuracy depends on sample rate vs. bit rate; the
+  panel warns when under-sampled.
+- **Save / Recall** — PNG screenshot, full-resolution CSV export, setup JSON.
+- **Signal generator** controls on the D-models (waveform, frequency,
+  amplitude, offset, duty).
+- Built-in **simulator** for every model.
+
+### Not exposed by the instrument's SCPI interface
+
+The following are device-screen-only features with no SCPI access, so they are
+unavailable to any remote client: **DVM**, **frequency counter**, **reference
+(REF) waveforms**, and **protocol-decode read-back**. Protocol *triggering* is
+supported, and OpenDSO2000 performs protocol *decoding* itself from samples.
+
+## APIs
+
+The server exposes HTTP + WebSocket APIs (interactive OpenAPI docs at
+`/docs`). The instrument driver is also usable directly from Python.
+
+### HTTP
+
+| Method & path | Purpose |
+|---------------|---------|
+| `GET /` | the web UI |
+| `GET /api/devices` | list discovered USB scopes + simulator options |
+| `POST /api/connect` | connect (`{kind:"usb"|"sim", …}`) → capabilities |
+| `POST /api/disconnect` | disconnect |
+| `POST /api/decode` | host-side protocol decode of a fresh capture |
+| `GET /api/waveform.csv` | full-resolution capture as CSV |
+
+### WebSocket `/ws`
+
+- **Server → client (binary):** one frame per acquisition — a little-endian
+  `uint32` header length, a JSON header (`seq`, `srate`, `trig`, per-channel
+  `scale`/`offset`/`n`, optional `math`), then `float32` volts per channel
+  (min/max-downsampled) and the optional math trace.
+- **Server → client (text/JSON):** `{"type":"status"|"meas", …}`.
+- **Client → server (text/JSON):** control commands `{"cmd": …}` —
+  `run`, `single`, `autoset`, `force`, `fps`, `measure`, `channel`, `timebase`,
+  `acquire`, `trigger`, `math`, `awg`, `mask`, `zoom`.
+
+### Python driver
+
+The `Dso2000` driver has no GUI/web dependency and can be scripted:
 
 ```python
 from opendso2000.transport.discovery import open_first
 from opendso2000.scope.driver import Dso2000
 
-scope = Dso2000(open_first())
+scope = Dso2000(open_first())     # first USB scope, else a simulator
 scope.connect()
 scope.set_timebase_scale(1e-3)
+scope.set_scale(1, 0.5)
 print(scope.measure(1, "VPP"))
+wf = scope.read_waveform()        # decoded volts per channel
+```
+
+## Project layout
+
+```
+opendso2000/
+├── transport/   USB-TMC layer (real + simulated) and device discovery
+├── scope/       Instrument logic (no GUI): driver, models, waveform decode,
+│                math/FFT processing, protocol decoders
+├── server/      FastAPI app (REST + WebSocket) and the static web UI
+└── res/         Icon assets
 ```
 
 ## Hardware calibration
 
-The SCPI manual documents the command set and the `:WAVeform:DATA:ALL?` header
-but not how many ADC codes map to one vertical division. The code uses the
-conventional 8-bit value (`CODES_PER_DIV = 25`, i.e. 200 codes over 8 divisions,
+The number of 8-bit ADC codes per vertical division is not stated in the SCPI
+manual; the decoder assumes `CODES_PER_DIV = 25` (200 codes over 8 divisions,
 centred on 128). If measured amplitudes are off by a constant factor on real
-hardware, adjust that single constant in `opendso2000/scope/waveform.py`.
+hardware, adjust that constant in `opendso2000/scope/waveform.py`.
 
 ## Trademarks & disclaimer
 
-OpenDSO2000 is an **independent, unofficial** project, **not affiliated with,
-endorsed by, or sponsored by Qingdao Hantek Electronic Co., Ltd.** "Hantek" and
-the model names are trademarks of their owner, used here only descriptively to
-identify compatible instruments (nominative fair use). No manufacturer logos or
-branding are bundled or displayed.
+OpenDSO2000 is an independent, unofficial project, not affiliated with, endorsed
+by, or sponsored by Qingdao Hantek Electronic Co., Ltd. "Hantek" and the model
+names are trademarks of their owner, used only descriptively to identify
+compatible instruments. No manufacturer logos or branding are bundled.
 
 ## License
 
-GPL-3.0-or-later, in keeping with the OpenHantek lineage this work draws on.
+GPL-3.0-or-later.
