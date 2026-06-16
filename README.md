@@ -53,8 +53,9 @@ install, and you can view from several devices at once.
 - **Measurement table** (Vpp, Vavg, Vrms, Vmax, Vmin, Freq, Period, Duty…)
 - **Pass/Fail mask** (source, X/Y tolerance, create, output)
 - **Zoom / dual-window** (window time-base + position, highlighted on screen)
-- **Protocol decode** — **UART** decoded host-side from the samples and shown
-  as bytes/ASCII (CAN/LIN/I²C/SPI scaffolded; see limits below)
+- **Protocol decode** — host-side decoding of **UART, I²C, SPI, CAN and LIN**
+  from the captured samples (I²C/SPI use two channels; CAN does NRZ
+  de-stuffing), shown as bytes/ASCII/transactions
 - **Save / Recall** — PNG screenshot, full-resolution **CSV** export, and
   setup save/load (JSON)
 - **Signal generator** controls on the D-models
@@ -68,8 +69,9 @@ These exist on the instrument's own screen but are **not exposed over SCPI**, so
 no remote client can offer them: **DVM**, **frequency counter**, **reference
 (REF) waveforms**, and **protocol-decode read-back** (the scope decodes
 internally but doesn't return the result). Protocol *triggering* is fully
-supported; OpenDSO2000 decodes **UART** itself from the captured samples, and
-CAN/LIN/I²C/SPI host-side decode is a planned addition.
+supported, and OpenDSO2000 decodes UART/I²C/SPI/CAN/LIN **itself** from the
+captured samples — so decode works regardless. Decode quality depends on
+sample rate vs. bit rate (the panel warns if under-sampled).
 
 ## Install (server)
 

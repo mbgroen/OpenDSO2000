@@ -335,19 +335,18 @@ function buildExtraSections(root){
   ]));
 
   // Protocol decode (host-side)
-  state.dec = state.dec || {protocol:"uart", source:1, baud:9600, bits:8, parity:"none", invert:false};
-  const decOut = el("div",{id:"decode-out",class:"mono",style:"max-height:120px;overflow:auto;margin-top:6px;white-space:pre-wrap"});
+  state.dec = state.dec || {protocol:"uart", source:1, sda:1, scl:2, baud:9600,
+    canBaud:500000, bits:8, parity:"none", edge:"rising", width:8, invert:false};
+  const decOut = el("div",{id:"decode-out",class:"mono",style:"max-height:140px;overflow:auto;margin-top:6px;white-space:pre-wrap"});
+  const decFields = el("div",{id:"decode-fields"});
   root.append(section("Protocol decode",[
-    selectField("Protocol",[["UART","uart"],["SPI (soon)","spi"],["I2C (soon)","iic"],["CAN (soon)","can"],["LIN (soon)","lin"]],
-      state.dec.protocol, v=>state.dec.protocol=v),
-    selectField("Source",[["CH1","1"],["CH2","2"]],String(state.dec.source),v=>state.dec.source=parseInt(v)),
-    selectField("Baud",[["9600","9600"],["19200","19200"],["38400","38400"],["57600","57600"],["115200","115200"]],
-      String(state.dec.baud), v=>state.dec.baud=parseInt(v)),
-    selectField("Data bits",[["8","8"],["7","7"],["6","6"],["5","5"]],String(state.dec.bits),v=>state.dec.bits=parseInt(v)),
-    selectField("Parity",[["None","none"],["Odd","odd"],["Even","even"]],state.dec.parity,v=>state.dec.parity=v),
+    selectField("Protocol",[["UART","uart"],["I2C","iic"],["SPI","spi"],["CAN","can"],["LIN","lin"]],
+      state.dec.protocol, v=>{state.dec.protocol=v; renderDecodeFields(decFields);}),
+    decFields,
     el("div",{class:"btnrow"},[el("button",{class:"primary",onclick:()=>runDecode(decOut)},"Decode")]),
     decOut,
   ]));
+  renderDecodeFields(decFields);
 
   // Save / Recall
   root.append(section("Save / Recall",[
@@ -360,16 +359,51 @@ function buildExtraSections(root){
   ]));
 }
 
+const CHANSEL = [["CH1","1"],["CH2","2"]];
+function renderDecodeFields(c){
+  c.innerHTML=""; const d=state.dec;
+  const baud=[["9600","9600"],["19200","19200"],["38400","38400"],["57600","57600"],["115200","115200"],["4800","4800"]];
+  if(d.protocol==="uart"||d.protocol==="lin"){
+    c.append(selectField("Source",CHANSEL,String(d.source),v=>d.source=parseInt(v)));
+    c.append(selectField("Baud",baud,String(d.baud),v=>d.baud=parseInt(v)));
+  }
+  if(d.protocol==="uart"){
+    c.append(selectField("Data bits",[["8","8"],["7","7"],["6","6"],["5","5"]],String(d.bits),v=>d.bits=parseInt(v)));
+    c.append(selectField("Parity",[["None","none"],["Odd","odd"],["Even","even"]],d.parity,v=>d.parity=v));
+  }
+  if(d.protocol==="can"){
+    c.append(selectField("Source",CHANSEL,String(d.source),v=>d.source=parseInt(v)));
+    c.append(selectField("Bit rate",[["125k","125000"],["250k","250000"],["500k","500000"],["1M","1000000"]],
+      String(d.canBaud),v=>d.canBaud=parseInt(v)));
+  }
+  if(d.protocol==="iic"){
+    c.append(selectField("SDA source",CHANSEL,String(d.sda),v=>d.sda=parseInt(v)));
+    c.append(selectField("SCL source",CHANSEL,String(d.scl),v=>d.scl=parseInt(v)));
+  }
+  if(d.protocol==="spi"){
+    c.append(selectField("Clock (SCL)",CHANSEL,String(d.scl),v=>d.scl=parseInt(v)));
+    c.append(selectField("Data (SDA)",CHANSEL,String(d.sda),v=>d.sda=parseInt(v)));
+    c.append(selectField("Clock edge",[["Rising","rising"],["Falling","falling"]],d.edge,v=>d.edge=v));
+    c.append(selectField("Word bits",[["8","8"],["16","16"],["4","4"],["12","12"],["24","24"],["32","32"]],
+      String(d.width),v=>d.width=parseInt(v)));
+  }
+}
 async function runDecode(out){
   out.textContent="Decoding…";
+  const d=state.dec;
+  const body={protocol:d.protocol, token:TOKEN, source:d.source, sda:d.sda, scl:d.scl,
+    baud:(d.protocol==="can"?d.canBaud:d.baud), data_bits:d.bits, parity:d.parity,
+    edge:d.edge, width:d.width, invert:d.invert};
   try{
     const r=await (await fetch("/api/decode",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({protocol:state.dec.protocol,source:state.dec.source,baud:state.dec.baud,
-        data_bits:state.dec.bits,parity:state.dec.parity,invert:state.dec.invert,token:TOKEN})})).json();
+      body:JSON.stringify(body)})).json();
     if(r.error){ out.textContent="⚠ "+r.error; return; }
-    if(!r.frames||!r.frames.length){ out.textContent="No frames decoded."; return; }
-    out.textContent = "ASCII: "+r.frames.map(f=>f.char).join("")+"\n\n"+
-      r.frames.map(f=>`${f.t.toExponential(2)}s  ${f.hex} '${f.char}'${f.ok?"":" ✗"}`).join("\n");
+    if(!r.frames||!r.frames.length){ out.textContent="No frames decoded (check sources/baud and that a real signal is present)."; return; }
+    let head="";
+    const chars=r.frames.filter(f=>f.char).map(f=>f.char).join("");
+    if(chars) head="ASCII: "+chars+"\n\n";
+    out.textContent = head + r.frames.map(f=>
+      `${f.t!=null?f.t.toExponential(2)+"s  ":""}${f.text||f.hex||""}${f.ok===false?"  ✗":""}`).join("\n");
   }catch(e){ out.textContent="Decode failed: "+e; }
 }
 function savePNG(){

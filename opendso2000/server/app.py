@@ -376,16 +376,16 @@ async def decode_endpoint(request: Request):
     if session.scope is None:
         return JSONResponse({"error": "not connected"}, status_code=409)
     body = await request.json()
-    ch = int(body.get("source", 1))
     loop = asyncio.get_event_loop()
     wf = await loop.run_in_executor(None, session.scope.read_waveform)
-    if not wf or ch not in wf.channels:
-        return JSONResponse({"error": "no data on that channel"}, status_code=409)
-    result = decoder.decode(
-        body.get("protocol", "uart"), wf.channels[ch].volts, wf.sample_rate,
-        baud=body.get("baud", 9600), data_bits=body.get("data_bits", 8),
-        parity=body.get("parity", "none"), invert=body.get("invert", False))
-    return result
+    if not wf or not wf.channels:
+        return JSONResponse({"error": "no captured data"}, status_code=409)
+    channels = {ch: tr.volts for ch, tr in wf.channels.items()}
+    params = {k: body[k] for k in
+              ("source", "sda", "scl", "baud", "width", "edge", "bit_order",
+               "data_bits", "parity", "invert") if k in body}
+    return decoder.decode(body.get("protocol", "uart"), channels,
+                          wf.sample_rate, **params)
 
 
 @app.get("/api/waveform.csv")
