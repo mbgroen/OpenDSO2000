@@ -3,7 +3,7 @@
 // and a Canvas oscilloscope screen drawn in division coordinates.
 
 const COLORS = {1:"#f2d011", 2:"#2fd45e", math:"#c060f0", trig:"#ff6a00",
-  grid:"#2a3340", axis:"#465a6e", screen:"#0a0f14"};
+  gen:"#3a7afe", grid:"#2a3340", axis:"#465a6e", screen:"#0a0f14"};
 const HDIV = 14, VDIV = 8;
 const MATH_SCALE_STEPS = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10];
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
@@ -212,7 +212,7 @@ function buildControls() {
   ]));
 
   if (spec.has_awg) {
-    state.awg = state.awg || {on:false, wave:"SINE", freq:1000, amp:1, offset:0, duty:50};
+    state.awg = state.awg || {on:false, wave:"SINE", freq:1000, amp:1, offset:0, duty:50, show:false, ref:1};
     root.append(section("Wave Gen",[
       el("div",{class:"btnrow"},[toggleBtn("Output",()=>state.awg.on,
         v=>{state.awg.on=v; send({cmd:"awg",on:v}); updateGenChip();})]),
@@ -222,6 +222,9 @@ function buildControls() {
       numField("Amplitude (Vpp)",state.awg.amp,v=>{state.awg.amp=v; send({cmd:"awg",amp:v}); updateGenChip();}),
       numField("Offset (V)",state.awg.offset,v=>{state.awg.offset=v; send({cmd:"awg",offset:v});}),
       numField("Duty (%)",state.awg.duty,v=>{state.awg.duty=v; send({cmd:"awg",duty:v});}),
+      el("div",{class:"btnrow"},[toggleBtn("Show output",()=>state.awg.show,v=>{state.awg.show=v;})]),
+      selectField("Overlay scale (ref CH)",[["CH1","1"],["CH2","2"]],String(state.awg.ref),
+        v=>{state.awg.ref=parseInt(v);}),
     ]));
     updateGenChip();
   }
@@ -237,9 +240,10 @@ function buildControls() {
   // toolbar
   const run = document.getElementById("run-btn");
   run.onclick = () => { state.run=!state.run; run.textContent=state.run?"Run":"Stop";
-    run.classList.toggle("stopped",!state.run); send({cmd:"run",on:state.run}); };
+    run.classList.toggle("stopped",!state.run); send({cmd:"run",on:state.run});
+    if(!state.run) setTrigChip("Stop"); };
   document.getElementById("single-btn").onclick = ()=>{ send({cmd:"single"});
-    state.run=false; run.textContent="Stop"; run.classList.add("stopped"); };
+    state.run=false; run.textContent="Stop"; run.classList.add("stopped"); setTrigChip("Stop"); };
   document.getElementById("auto-btn").onclick = ()=>send({cmd:"autoset"});
   document.getElementById("force-btn").onclick = ()=>send({cmd:"force"});
   document.getElementById("device-btn").onclick = async ()=>{
@@ -459,10 +463,15 @@ function openWS() {
   };
   ws.onclose = () => setTimeout(()=>{ if(!document.getElementById("app").classList.contains("hidden")) openWS(); }, 1000);
 }
+function setTrigChip(label){
+  const c=document.getElementById("trig-chip"); if(!c) return;
+  c.textContent=label;
+  c.classList.toggle("ok", label==="Trig'd");          // green only when triggered
+  c.style.opacity = label==="Stop" ? "0.7" : "1";
+}
 function onJSON(m) {
   if (m.type === "status") {
-    const c = document.getElementById("trig-chip");
-    const ok = m.trig === "Triggered"; c.textContent = ok?"TD":"AUTO"; c.classList.toggle("ok", true);
+    if (state.run !== false) setTrigChip(m.trig === "Triggered" ? "Trig'd" : "Auto");
     document.getElementById("srate-chip").textContent = eng(m.srate,"Sa/s");
   } else if (m.type === "meas") {
     renderMeas(m.data);
@@ -549,6 +558,34 @@ function drawHPosMarker(){
   const x = x2px(state.hpos || 0);
   ctx.fillStyle = COLORS.trig;
   ctx.beginPath(); ctx.moveTo(x-6,1); ctx.lineTo(x+6,1); ctx.lineTo(x,11); ctx.closePath(); ctx.fill();
+}
+// Overlay the commanded generator output (blue) using a reference channel's
+// volts/div + position so it lines up with that channel's input. Not phase-
+// locked to the scope, so phase is arbitrary — for shape/amplitude/freq compare.
+function drawAwgOverlay(){
+  const a = state.awg;
+  if (!spec.has_awg || !a || !a.show || !a.on) return;
+  const ref = a.ref || 1, sc = vdiv(ref) || 1;
+  const posDiv = state.ch[ref] ? state.ch[ref].pos : 0;
+  const total = HDIV * tdiv(), f = a.freq || 1000, ampV = (a.amp || 0) / 2;
+  const off = a.offset || 0, hp = state.hpos || 0, N = 800;
+  ctx.strokeStyle = COLORS.gen; ctx.lineWidth = 1.4; ctx.setLineDash([]); ctx.beginPath();
+  for (let i = 0; i < N; i++){
+    const xd = -HDIV/2 + i/(N-1)*HDIV;
+    const tt = ((xd + HDIV/2)/HDIV) * total, ph = (tt * f) % 1;
+    let s;
+    if (a.wave === "SQUAre") s = ph < (a.duty||50)/100 ? 1 : -1;
+    else if (a.wave === "RAMP") s = 2*ph - 1;
+    else if (a.wave === "DC") s = 0;
+    else if (a.wave === "NOISe") s = Math.random()*2 - 1;
+    else if (a.wave === "EXP") s = 2*Math.exp(-3*ph) - 1;
+    else s = Math.sin(2*Math.PI*tt*f);
+    const volts = a.wave === "DC" ? off : s*ampV + off;
+    const yd = Math.max(-VDIV/2, Math.min(VDIV/2, volts/sc + posDiv));
+    const x = x2px(xd + hp), y = div2pxY(yd);
+    if (i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
 }
 // volts of channel `ch` at a given on-screen division (accounts for hpos shift)
 function valueAtDiv(ch, screenDiv){
@@ -656,6 +693,7 @@ function render() {
     if (frame.math) drawTrace(frame.math, COLORS.math, 1, 0,
                               state.math.operator==="FFT" ? 0 : hpos);
   }
+  drawAwgOverlay();
   drawTrigger();
   drawHPosMarker();
   drawZoomPane();

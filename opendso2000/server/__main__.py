@@ -9,9 +9,18 @@ Set OPENDSO2000_TOKEN to require a shared secret.
 from __future__ import annotations
 
 import argparse
+import socket
 import sys
 import threading
 import webbrowser
+
+
+def _port_in_use(host: str, port: int) -> bool:
+    """True if something is already listening (e.g. a previous launch)."""
+    test_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.4)
+        return s.connect_ex((test_host, port)) == 0
 
 
 def main(argv=None) -> int:
@@ -24,16 +33,31 @@ def main(argv=None) -> int:
                    help="Open the UI in the local browser on start.")
     args = p.parse_args(argv)
 
+    url = f"http://localhost:{args.port}/"
+
+    # Already running (e.g. the app was double-clicked twice, or both the ARM and
+    # Intel builds were launched)? Don't crash — just open the existing UI.
+    if _port_in_use(args.host, args.port):
+        print(f"[OpenDSO2000] A server is already running on port {args.port}; "
+              f"opening {url}")
+        webbrowser.open(url)
+        return 0
+
     import uvicorn
     from .app import app
 
-    url = f"http://localhost:{args.port}/"
     print(f"[OpenDSO2000] Web UI on http://{args.host}:{args.port}/  "
           f"(open {url} or http://<this-host-ip>:{args.port}/ from another device)")
     if args.open:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
 
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    try:
+        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    except OSError as exc:                       # port grabbed in a race, etc.
+        print(f"[OpenDSO2000] Could not bind {args.host}:{args.port}: {exc}\n"
+              f"Opening {url} in case another instance owns it.")
+        webbrowser.open(url)
+        return 0
     return 0
 
 

@@ -73,6 +73,16 @@ Open `http://<server-ip>:8000/` in a browser, pick an instrument (or a
 simulator) in the connect dialog. Prebuilt binaries behave the same — running
 one starts the server and opens the UI locally.
 
+> **The server has no window** — it runs in the background and opens your
+> browser. On macOS, double-clicking `OpenDSO2000.app` therefore shows no app
+> window; it just opens the browser tab. Launching it a second time while it's
+> already running (or running both the Intel and Apple-Silicon builds, which
+> share a bundle id) yields macOS **error −47** ("already running / busy") —
+> that's expected; the first instance is serving. Quit it from Activity Monitor
+> (or `pkill -f OpenDSO2000`) before relaunching. For logs, run the binary from
+> a terminal: `OpenDSO2000.app/Contents/MacOS/OpenDSO2000`. If Gatekeeper
+> blocks the unsigned app, `xattr -cr OpenDSO2000.app` then right-click → Open.
+
 Options and environment variables:
 
 | Setting | Effect |
@@ -96,17 +106,21 @@ Options and environment variables:
 - **Run / Stop / Single / Auto-Set / Force.**
 - **Math** (CH1±CH2, ×, ÷) and **FFT** (Hanning/Hamming/Blackman/Rectangle,
   dBV or Vrms), computed from full-resolution samples.
-- **Cursors** (manual X/Y/XY with ΔX, 1/ΔX, ΔY readout).
+- **Horizontal position** (panel slider + draggable on-screen marker) and a
+  trigger-status indicator (Trig'd / Auto / Stop).
+- **Cursors** — manual X/Y/XY and **Track** (cursors ride the waveform), with
+  draggable A/B handles and an on-screen ΔX / 1·ΔX / ΔY readout.
 - **Measurement table** (Vpp, Vavg, Vrms, Vmax, Vmin, Freq, Period, Duty, …).
 - **Pass/Fail mask** (source, X/Y tolerance, create, output).
-- **Zoom / dual-window** (window time-base + position).
+- **Zoom / dual-window** — a magnified pane shows the highlighted region.
 - **Protocol decode** — host-side decoding of **UART, I²C, SPI, CAN, LIN** from
   the captured samples (I²C/SPI use two channels; CAN does NRZ de-stuffing,
   standard + extended IDs). Accuracy depends on sample rate vs. bit rate; the
   panel warns when under-sampled.
 - **Save / Recall** — PNG screenshot, full-resolution CSV export, setup JSON.
 - **Signal generator** controls on the D-models (waveform, frequency,
-  amplitude, offset, duty).
+  amplitude, offset, duty), with an optional **on-screen overlay** of the
+  commanded output (blue) for quick input-vs-output comparison.
 - Built-in **simulator** for every model.
 
 ### Not exposed by the instrument's SCPI interface
