@@ -158,11 +158,12 @@ function buildControls() {
       state.acq, v=>{state.acq=v; send({cmd:"acquire",type:v});}),
   ]));
 
+  const trigExtra = el("div",{id:"trig-extra"});
   root.append(section("Trigger",[
     selectField("Type",[["Edge","EDGE"],["Pulse","PULSe"],["Slope","SLOPe"],["Video","TV"],
       ["Timeout","TIMeout"],["Window","WINdow"],["Interval","INTerval"],["Runt","UNDerthrow"],
       ["Pattern","PATTern"],["UART","UART"],["CAN","CAN"],["LIN","LIN"],["I2C","IIC"],["SPI","SPI"]],
-      state.trig.mode, v=>{state.trig.mode=v; send({cmd:"trigger",mode:v});}),
+      state.trig.mode, v=>{state.trig.mode=v; send({cmd:"trigger",mode:v}); renderTrigExtra(v, trigExtra);}),
     selectField("Sweep",[["Auto","AUTO"],["Normal","NORMal"],["Single","SINGle"]],state.trig.sweep,
       v=>{state.trig.sweep=v; send({cmd:"trigger",sweep:v});}),
     selectField("Source",[["CH1","CHANnel1"],["CH2","CHANnel2"],["EXT","EXT/10"]],state.trig.source,
@@ -173,7 +174,11 @@ function buildControls() {
       el("input",{type:"range",min:-4,max:4,step:0.05,value:0,
         oninput:e=>{state.trig.levelDiv=parseFloat(e.target.value);
           send({cmd:"trigger",level:state.trig.levelDiv*srcScale(state.trig.source)});}})]),
+    trigExtra,
   ]));
+  renderTrigExtra(state.trig.mode, trigExtra);
+
+  buildExtraSections(root);
 
   const mathScale = stepper(()=>eng(MATH_SCALE_STEPS[state.math.scaleIndex],"V"),
     ()=>{state.math.scaleIndex=Math.max(0,state.math.scaleIndex-1); send({cmd:"math",scale:MATH_SCALE_STEPS[state.math.scaleIndex]});},
@@ -238,6 +243,159 @@ function buildControls() {
 function numField(label, val, onchange){
   return el("div",{class:"field"},[el("label",{},label),
     el("input",{type:"number",value:val,onchange:e=>onchange(parseFloat(e.target.value))})]);
+}
+
+// ---------- advanced trigger parameters ----------
+// Per-type fields. f=field: {l:label, p:SCPI path, k:kind, o:options|range}
+const POL = [["Positive","POSItive"],["Negative","NEGAtive"]];
+const WHEN = [["=","EQUAl"],["≠","NEQUal"],[">","GREAt"],["<","LESS"]];
+const SRC4 = [["CH1","CHANnel1"],["CH2","CHANnel2"]];
+const TRIG_PARAMS = {
+  PULSe:[{l:"Polarity",p:"PULSe:POLarity",k:"sel",o:POL},{l:"When",p:"PULSe:WHEN",k:"sel",o:WHEN},
+    {l:"Width",p:"PULSe:WIDth",k:"time"},{l:"Level (V)",p:"PULSe:LEVel",k:"num"}],
+  SLOPe:[{l:"Polarity",p:"SLOPe:POLarity",k:"sel",o:POL},{l:"When",p:"SLOPe:WHEN",k:"sel",o:WHEN},
+    {l:"Width",p:"SLOPe:WIDth",k:"time"},{l:"Level A (V)",p:"SLOPe:ALEVel",k:"num"},{l:"Level B (V)",p:"SLOPe:BLEVel",k:"num"}],
+  TV:[{l:"Standard",p:"TV:STANdard",k:"sel",o:[["NTSC","NTSC"],["PAL","PAL"]]},
+    {l:"Sync",p:"TV:MODE",k:"sel",o:[["All lines","ALINes"],["Line","LINEs"],["Field 1","FIEld1"],["Field 2","FIEld2"],["All fields","AFIelds"]]},
+    {l:"Line",p:"TV:LINE",k:"int",o:[1,625]},{l:"Polarity",p:"TV:POLarity",k:"sel",o:POL},{l:"Level (V)",p:"VIDeo:LEVel",k:"num"}],
+  TIMeout:[{l:"Polarity",p:"TIMeout:POLarity",k:"sel",o:POL},{l:"Time",p:"TIMeout:WIDth",k:"time"},{l:"Level (V)",p:"TIMeout:LEVel",k:"num"}],
+  WINdow:[{l:"Level A (V)",p:"WINDOw:ALEVel",k:"num"},{l:"Level B (V)",p:"WINDOw:BLEVel",k:"num"}],
+  INTerval:[{l:"Slope",p:"INTERVAl:SLOp",k:"sel",o:[["Rising","RISIng"],["Falling","FALLing"],["Double","DOUBle"]]},
+    {l:"When",p:"INTERVAl:WHEN",k:"sel",o:WHEN},{l:"Time",p:"INTERVAl:TIME",k:"time"},{l:"Level (V)",p:"INTERVAl:ALEVel",k:"num"}],
+  UNDerthrow:[{l:"Polarity",p:"UNDER_Am:POLarity",k:"sel",o:POL},{l:"When",p:"UNDER_Am:WHEN",k:"sel",o:WHEN},
+    {l:"Time",p:"UNDER_Am:TIME",k:"time"},{l:"Level A (V)",p:"UNDER_Am:ALEVel",k:"num"},{l:"Level B (V)",p:"UNDER_Am:BLEVel",k:"num"}],
+  UART:[{l:"Baud",p:"UART:BAUd",k:"sel",o:[["9600","9600"],["19200","19200"],["38400","38400"],["57600","57600"],["115200","115200"],["4800","4800"]]},
+    {l:"Condition",p:"UART:CONdition",k:"sel",o:[["Start","START"],["Stop","STOP"],["Data","READ_DATA"],["Parity err","PARITY_ERR"]]},
+    {l:"Parity",p:"UART:PARIty",k:"sel",o:[["None","NONE"],["Odd","ODD"],["Even","EVEN"]]},
+    {l:"Data bits",p:"UART:WIDTh",k:"sel",o:[["8","8"],["7","7"],["6","6"],["5","5"]]},
+    {l:"Data",p:"UART:DATA",k:"int",o:[0,255]},{l:"Level (V)",p:"UART:ALEVel",k:"num"}],
+  CAN:[{l:"Baud",p:"CAN:BAUd",k:"sel",o:[["125k","125000"],["250k","250000"],["500k","500000"],["1M","1000000"]]},
+    {l:"Idle",p:"CAN:IDLe",k:"sel",o:[["Low","LOW"],["High","HIGH"]]},
+    {l:"Condition",p:"CAN:CONdition",k:"sel",o:[["Frame start","FRAM_STARE"],["Error","ERR_ALL"],["ACK error","ACK_ERR"]]},
+    {l:"ID",p:"CAN:ID",k:"int",o:[0,28]},{l:"DLC",p:"CAN:DLC",k:"int",o:[0,8]},{l:"Level (V)",p:"CAN:ALEVel",k:"num"}],
+  LIN:[{l:"Baud",p:"LIN:BAUd",k:"sel",o:[["9600","9600"],["19200","19200"],["115200","115200"]]},
+    {l:"Idle",p:"LIN:IDLe",k:"sel",o:[["Low","LOW"],["High","HIGH"]]},
+    {l:"Condition",p:"LIN:CONdition",k:"sel",o:[["Sync","SYNC_FIELD"],["ID","ID_FIELD"],["Data","DATA"]]},
+    {l:"ID",p:"LIN:ID",k:"int",o:[0,63]},{l:"Level (V)",p:"LIN:ALEVel",k:"num"}],
+  IIC:[{l:"Condition",p:"IIC:CONdition",k:"sel",o:[["Start","START"],["Stop","STOP"],["Restart","RESTART"],["No-ACK","ADDR_NO_ACK"],["Read data","READ_DATA"]]},
+    {l:"Address",p:"IIC:ADDer",k:"int",o:[0,1023]},{l:"SCL level (V)",p:"IIC:ALEVel",k:"num"},{l:"SDA level (V)",p:"IIC:BLEVel",k:"num"}],
+  SPI:[{l:"Clock edge",p:"SPI:SCK",k:"sel",o:[["Rising","Rising"],["Falling","Falling"]]},
+    {l:"Data width",p:"SPI:WIDth",k:"int",o:[4,32]},{l:"Data",p:"SPI:DATA",k:"int",o:[0,2147483647]},
+    {l:"SCL level (V)",p:"SPI:ALEVel",k:"num"},{l:"SDA level (V)",p:"SPI:BLEVel",k:"num"}],
+  PATTern:[{l:"Pattern (CH1,CH2)",p:"PATTern:PATTern",k:"text",ph:"H,L,X,X"}],
+};
+function timeField(label, onSeconds){
+  let val=el("input",{type:"number",value:1,style:"flex:1",onchange:fire});
+  let unit=el("select",{onchange:fire});
+  [["ns",1e-9],["µs",1e-6],["ms",1e-3],["s",1]].forEach(([t,f])=>{const o=el("option",{value:f},t);if(f===1e-6)o.selected=true;unit.append(o);});
+  function fire(){ onSeconds(parseFloat(val.value)*parseFloat(unit.value)); }
+  return el("div",{class:"field"},[el("label",{},label), el("div",{class:"stepper"},[val,unit])]);
+}
+function renderTrigExtra(type, container){
+  container.innerHTML="";
+  const fields = TRIG_PARAMS[type]; if(!fields) return;
+  fields.forEach(f=>{
+    const sendP=v=>send({cmd:"trigger",param:f.p,value:v});
+    if(f.k==="sel") container.append(selectField(f.l,f.o,f.o[0][1],sendP));
+    else if(f.k==="time") container.append(timeField(f.l,sendP));
+    else if(f.k==="num") container.append(numField(f.l,0,v=>sendP(String(v))));
+    else if(f.k==="int") container.append(el("div",{class:"field"},[el("label",{},f.l),
+      el("input",{type:"number",min:f.o?f.o[0]:0,max:f.o?f.o[1]:0,value:0,onchange:e=>sendP(e.target.value)})]));
+    else if(f.k==="text") container.append(el("div",{class:"field"},[el("label",{},f.l),
+      el("input",{type:"text",placeholder:f.ph||"",onchange:e=>sendP(e.target.value)})]));
+  });
+}
+
+// ---------- extra sections: zoom, pass/fail, decode, save/recall ----------
+function buildExtraSections(root){
+  // Zoom / dual window
+  state.zoom = state.zoom || {on:false, tIndex:Math.max(0,state.tIndex-4)};
+  const zscale = stepper(()=>eng(spec.time_div_steps[state.zoom.tIndex],"s"),
+    ()=>{state.zoom.tIndex=Math.max(0,state.zoom.tIndex-1); send({cmd:"zoom",scale:spec.time_div_steps[state.zoom.tIndex]});},
+    ()=>{state.zoom.tIndex=Math.min(state.tIndex,state.zoom.tIndex+1); send({cmd:"zoom",scale:spec.time_div_steps[state.zoom.tIndex]});});
+  root.append(section("Zoom (dual window)",[
+    el("div",{class:"btnrow"},[toggleBtn("Enable",()=>state.zoom.on,v=>{state.zoom.on=v; send({cmd:"zoom",enabled:v});})]),
+    el("div",{class:"field"},[el("label",{},"Window time/div"), zscale]),
+    el("div",{class:"field"},[el("label",{},"Window position"),
+      el("input",{type:"range",min:-7,max:7,step:0.1,value:0,
+        oninput:e=>{state.zoom.pos=parseFloat(e.target.value); send({cmd:"zoom",position:state.zoom.pos*tdiv()});}})]),
+  ]));
+
+  // Pass / Fail mask
+  state.mask = state.mask || {on:false, source:"CHANnel1", x:0.4, y:0.4, output:false};
+  root.append(section("Pass / Fail",[
+    el("div",{class:"btnrow"},[toggleBtn("Enable",()=>state.mask.on,v=>{state.mask.on=v; send({cmd:"mask",enabled:v});})]),
+    selectField("Source",[["CH1","CHANnel1"],["CH2","CHANnel2"],["Math","MATH"]],state.mask.source,
+      v=>{state.mask.source=v; send({cmd:"mask",source:v});}),
+    numField("X tolerance (div)",0.4,v=>{state.mask.x=v; send({cmd:"mask",x:v});}),
+    numField("Y tolerance (div)",0.4,v=>{state.mask.y=v; send({cmd:"mask",y:v});}),
+    el("div",{class:"btnrow"},[
+      el("button",{onclick:()=>send({cmd:"mask",create:true})},"Create mask"),
+      toggleBtn("Output",()=>state.mask.output,v=>{state.mask.output=v; send({cmd:"mask",output:v});})]),
+  ]));
+
+  // Protocol decode (host-side)
+  state.dec = state.dec || {protocol:"uart", source:1, baud:9600, bits:8, parity:"none", invert:false};
+  const decOut = el("div",{id:"decode-out",class:"mono",style:"max-height:120px;overflow:auto;margin-top:6px;white-space:pre-wrap"});
+  root.append(section("Protocol decode",[
+    selectField("Protocol",[["UART","uart"],["SPI (soon)","spi"],["I2C (soon)","iic"],["CAN (soon)","can"],["LIN (soon)","lin"]],
+      state.dec.protocol, v=>state.dec.protocol=v),
+    selectField("Source",[["CH1","1"],["CH2","2"]],String(state.dec.source),v=>state.dec.source=parseInt(v)),
+    selectField("Baud",[["9600","9600"],["19200","19200"],["38400","38400"],["57600","57600"],["115200","115200"]],
+      String(state.dec.baud), v=>state.dec.baud=parseInt(v)),
+    selectField("Data bits",[["8","8"],["7","7"],["6","6"],["5","5"]],String(state.dec.bits),v=>state.dec.bits=parseInt(v)),
+    selectField("Parity",[["None","none"],["Odd","odd"],["Even","even"]],state.dec.parity,v=>state.dec.parity=v),
+    el("div",{class:"btnrow"},[el("button",{class:"primary",onclick:()=>runDecode(decOut)},"Decode")]),
+    decOut,
+  ]));
+
+  // Save / Recall
+  root.append(section("Save / Recall",[
+    el("div",{class:"btnrow"},[
+      el("button",{onclick:savePNG},"Save PNG"),
+      el("button",{onclick:()=>window.open("/api/waveform.csv"+(TOKEN?`?token=${TOKEN}`:""),"_blank")},"Export CSV")]),
+    el("div",{class:"btnrow"},[
+      el("button",{onclick:saveSetup},"Save setup"),
+      el("button",{onclick:loadSetup},"Load setup")]),
+  ]));
+}
+
+async function runDecode(out){
+  out.textContent="Decoding…";
+  try{
+    const r=await (await fetch("/api/decode",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({protocol:state.dec.protocol,source:state.dec.source,baud:state.dec.baud,
+        data_bits:state.dec.bits,parity:state.dec.parity,invert:state.dec.invert,token:TOKEN})})).json();
+    if(r.error){ out.textContent="⚠ "+r.error; return; }
+    if(!r.frames||!r.frames.length){ out.textContent="No frames decoded."; return; }
+    out.textContent = "ASCII: "+r.frames.map(f=>f.char).join("")+"\n\n"+
+      r.frames.map(f=>`${f.t.toExponential(2)}s  ${f.hex} '${f.char}'${f.ok?"":" ✗"}`).join("\n");
+  }catch(e){ out.textContent="Decode failed: "+e; }
+}
+function savePNG(){
+  const link=document.createElement("a");
+  link.download="opendso2000.png"; link.href=canvas.toDataURL("image/png"); link.click();
+}
+function saveSetup(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const link=document.createElement("a"); link.download="opendso2000-setup.json";
+  link.href=URL.createObjectURL(blob); link.click();
+}
+function loadSetup(){
+  const inp=el("input",{type:"file",accept:".json",onchange:async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    try{ const s=JSON.parse(await f.text()); Object.assign(state,s); applyState(); buildControls(); }
+    catch(err){ alert("Bad setup file: "+err); }
+  }});
+  inp.click();
+}
+function applyState(){
+  for(const ch of [1,2]){ const c=state.ch[ch];
+    send({cmd:"channel",ch,display:c.display,scale:vdiv(ch),coupling:c.coupling,probe:parseInt(c.probe),bw:c.bw,invert:c.invert}); }
+  send({cmd:"timebase",scale:tdiv(),mode:state.tbmode});
+  send({cmd:"acquire",type:state.acq,depth:parseInt(state.depth)});
+  send({cmd:"trigger",mode:state.trig.mode,sweep:state.trig.sweep,source:state.trig.source,slope:state.trig.slope});
+  send({cmd:"math",enabled:state.math.enabled,operator:state.math.operator});
 }
 
 // ---------- websocket ----------
@@ -335,6 +493,16 @@ function drawTrigger() {
   ctx.strokeStyle = COLORS.trig; ctx.lineWidth=1; ctx.setLineDash([6,4]);
   const y=div2pxY(d); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); ctx.setLineDash([]);
 }
+function drawZoomBand() {
+  if (!state.zoom || !state.zoom.on) return;
+  const widthDiv = Math.min(HDIV, HDIV * spec.time_div_steps[state.zoom.tIndex] / tdiv());
+  const centerDiv = state.zoom.pos || 0;
+  const x0 = x2px(centerDiv - widthDiv/2), x1 = x2px(centerDiv + widthDiv/2);
+  ctx.fillStyle = "rgba(58,122,254,0.15)";
+  ctx.fillRect(x0, 0, x1-x0, H);
+  ctx.strokeStyle = "rgba(58,122,254,0.7)"; ctx.lineWidth=1;
+  ctx.strokeRect(x0, 0, x1-x0, H);
+}
 function drawCursors() {
   const c = state.cursor; if (c.mode==="OFF") return;
   ctx.strokeStyle="#d8dee9"; ctx.lineWidth=1; ctx.setLineDash([4,4]);
@@ -363,6 +531,7 @@ function render() {
     if (frame.math) drawTrace(frame.math, COLORS.math, 1, 0);
   }
   drawTrigger();
+  drawZoomBand();
   drawCursors();
   // chrome
   document.getElementById("tb-chip").textContent = "H " + eng(tdiv(),"s");

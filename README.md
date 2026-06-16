@@ -43,17 +43,33 @@ install, and you can view from several devices at once.
   20 MHz bandwidth limit, invert, channel on/off
 - **Horizontal:** time/div, Y-T / X-Y / Roll, memory depth (4 K…8 M),
   acquisition mode (Normal/Average/Peak/Hi-Res)
-- **Trigger:** edge/pulse/slope/video/… types, Auto/Normal/Single sweep,
-  source/slope/level, force
+- **Trigger:** all device types — edge, pulse, slope, video, timeout, window,
+  interval, runt, pattern, and serial (UART/CAN/LIN/I²C/SPI) — each with its
+  full per-type parameter set; Auto/Normal/Single sweep; force
 - **Run / Stop / Single / Auto-Set / Force**
 - **Math** (CH1±CH2, ×, ÷) and **FFT** (Hanning/Hamming/Blackman/Rectangle,
   dBV or Vrms), computed server-side from full-resolution samples
 - **Cursors** (manual X/Y/XY with ΔX, 1/ΔX, ΔY readout)
 - **Measurement table** (Vpp, Vavg, Vrms, Vmax, Vmin, Freq, Period, Duty…)
+- **Pass/Fail mask** (source, X/Y tolerance, create, output)
+- **Zoom / dual-window** (window time-base + position, highlighted on screen)
+- **Protocol decode** — **UART** decoded host-side from the samples and shown
+  as bytes/ASCII (CAN/LIN/I²C/SPI scaffolded; see limits below)
+- **Save / Recall** — PNG screenshot, full-resolution **CSV** export, and
+  setup save/load (JSON)
 - **Signal generator** controls on the D-models
 - Adjustable refresh-rate cap (`OPENDSO2000_MAX_FPS`)
 - Built-in **simulator** for every model — no hardware needed
 - Optional access token (`OPENDSO2000_TOKEN`)
+
+### Not available over the DSO2000 SCPI interface
+
+These exist on the instrument's own screen but are **not exposed over SCPI**, so
+no remote client can offer them: **DVM**, **frequency counter**, **reference
+(REF) waveforms**, and **protocol-decode read-back** (the scope decodes
+internally but doesn't return the result). Protocol *triggering* is fully
+supported; OpenDSO2000 decodes **UART** itself from the captured samples, and
+CAN/LIN/I²C/SPI host-side decode is a planned addition.
 
 ## Install (server)
 

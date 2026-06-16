@@ -323,6 +323,40 @@ class Dso2000:
         with self._lock:
             self._t.write(b":DDS:ARB:DAC16:BIN " + block)
 
+    # === MASK (pass/fail) ==============================================
+
+    def set_mask_enabled(self, on: bool) -> None:
+        self.write(f":MASK:EANBle {_b(on)}")
+
+    def set_mask_source(self, source: str) -> None:
+        self.write(f":MASK:SOURce {source}")
+
+    def set_mask_x(self, divisions: float) -> None:
+        self.write(f":MASK:X {divisions:g}")
+
+    def set_mask_y(self, divisions: float) -> None:
+        self.write(f":MASK:Y {divisions:g}")
+
+    def mask_create(self) -> None:
+        self.write(":MASK:CREate")
+
+    def set_mask_stats(self, on: bool) -> None:
+        self.write(f":MASK:MDISplay {_b(on)}")
+
+    def set_mask_output(self, on: bool) -> None:
+        self.write(f":MASK:OUTPut {_b(on)}")
+
+    # === Zoom / dual window (TIMebase:WINDow) ==========================
+
+    def set_zoom_enabled(self, on: bool) -> None:
+        self.write(f":TIMebase:WINDow:ENABle {_b(on)}")
+
+    def set_zoom_scale(self, seconds_per_div: float) -> None:
+        self.write(f":TIMebase:WINDow:SCALe {seconds_per_div:g}")
+
+    def set_zoom_position(self, seconds: float) -> None:
+        self.write(f":TIMebase:WINDow:POSition {seconds:g}")
+
     # === System =========================================================
 
     def screenshot_setup(self) -> str:

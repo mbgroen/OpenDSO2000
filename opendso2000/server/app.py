@@ -288,6 +288,18 @@ class Session:
                 if "amp" in msg: await call(s.set_awg_amplitude, float(msg["amp"]))
                 if "offset" in msg: await call(s.set_awg_offset, float(msg["offset"]))
                 if "duty" in msg: await call(s.set_awg_duty, float(msg["duty"]))
+            elif c == "mask":
+                if "enabled" in msg: await call(s.set_mask_enabled, bool(msg["enabled"]))
+                if "source" in msg: await call(s.set_mask_source, msg["source"])
+                if "x" in msg: await call(s.set_mask_x, float(msg["x"]))
+                if "y" in msg: await call(s.set_mask_y, float(msg["y"]))
+                if msg.get("create"): await call(s.mask_create)
+                if "stats" in msg: await call(s.set_mask_stats, bool(msg["stats"]))
+                if "output" in msg: await call(s.set_mask_output, bool(msg["output"]))
+            elif c == "zoom":
+                if "enabled" in msg: await call(s.set_zoom_enabled, bool(msg["enabled"]))
+                if "scale" in msg: await call(s.set_zoom_scale, float(msg["scale"]))
+                if "position" in msg: await call(s.set_zoom_position, float(msg["position"]))
         except Exception:
             pass
 
@@ -355,6 +367,48 @@ async def connect(request: Request):
 async def disconnect():
     await session.disconnect()
     return {"ok": True}
+
+
+@app.post("/api/decode")
+async def decode_endpoint(request: Request):
+    """Decode a freshly captured (full-resolution) frame on the host."""
+    from ..scope import decode as decoder
+    if session.scope is None:
+        return JSONResponse({"error": "not connected"}, status_code=409)
+    body = await request.json()
+    ch = int(body.get("source", 1))
+    loop = asyncio.get_event_loop()
+    wf = await loop.run_in_executor(None, session.scope.read_waveform)
+    if not wf or ch not in wf.channels:
+        return JSONResponse({"error": "no data on that channel"}, status_code=409)
+    result = decoder.decode(
+        body.get("protocol", "uart"), wf.channels[ch].volts, wf.sample_rate,
+        baud=body.get("baud", 9600), data_bits=body.get("data_bits", 8),
+        parity=body.get("parity", "none"), invert=body.get("invert", False))
+    return result
+
+
+@app.get("/api/waveform.csv")
+async def waveform_csv():
+    """Full-resolution capture as CSV (time + each enabled channel in volts)."""
+    if session.scope is None:
+        return JSONResponse({"error": "not connected"}, status_code=409)
+    loop = asyncio.get_event_loop()
+    wf = await loop.run_in_executor(None, session.scope.read_waveform)
+    if not wf or not wf.channels:
+        return JSONResponse({"error": "no data"}, status_code=409)
+    chans = sorted(wf.channels)
+    import io
+    buf = io.StringIO()
+    buf.write("time_s," + ",".join(f"CH{c}_V" for c in chans) + "\n")
+    t = wf.time
+    cols = [wf.channels[c].volts for c in chans]
+    n = min(len(t), *(len(v) for v in cols)) if cols else 0
+    for i in range(n):
+        buf.write(f"{t[i]:.9g}," + ",".join(f"{v[i]:.6g}" for v in cols) + "\n")
+    from fastapi.responses import Response
+    return Response(buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=opendso2000.csv"})
 
 
 @app.websocket("/ws")

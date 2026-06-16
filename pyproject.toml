@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opendso2000"
-version = "0.1.0"
+version = "0.2.0"
 description = "Cross-platform control software for Hantek DSO2C10/2C15/2D10/2D15 oscilloscopes"
 readme = "README.md"
 requires-python = ">=3.9"
