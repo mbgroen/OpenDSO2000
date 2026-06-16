@@ -1,5 +1,5 @@
 :root{
-  --ch1:#f2d011; --ch2:#13c4f0; --math:#c060f0; --trig:#ff6a00;
+  --ch1:#f2d011; --ch2:#2fd45e; --math:#c060f0; --trig:#ff6a00;
   --screen:#0a0f14; --grid:#2a3340; --axis:#465a6e;
   --panel:#1c1f24; --panel2:#262a31; --line:#333842;
   --text:#e6e9ee; --dim:#9aa4b1; --accent:#3a7afe;
@@ -46,6 +46,9 @@ input[type=range]{width:100%}
 .chip{background:#1a2029;border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:11px}
 .chip.ok{background:#27a34a;color:#0a0f14}
 .chip.math{background:var(--math);color:#0a0f14}
+.chip.c1{background:var(--ch1);color:#0a0f14}
+.chip.c2{background:var(--ch2);color:#0a0f14}
+.chip.gen{background:var(--accent);color:#fff}
 .canvas-host{position:relative;flex:1;min-height:0}
 #scope{display:block;width:100%;height:100%}
 .meas-table{position:absolute;top:10px;left:10px;background:rgba(6,11,16,.9);

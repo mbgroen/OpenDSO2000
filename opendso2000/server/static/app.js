@@ -2,7 +2,7 @@
 // OpenDSO2000 web client: device picker, control panel, WebSocket streaming,
 // and a Canvas oscilloscope screen drawn in division coordinates.
 
-const COLORS = {1:"#f2d011", 2:"#13c4f0", math:"#c060f0", trig:"#ff6a00",
+const COLORS = {1:"#f2d011", 2:"#2fd45e", math:"#c060f0", trig:"#ff6a00",
   grid:"#2a3340", axis:"#465a6e", screen:"#0a0f14"};
 const HDIV = 14, VDIV = 8;
 const MATH_SCALE_STEPS = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10];
@@ -86,6 +86,7 @@ function initState() {
     2:{display:true, vIndex:nearestIndex(vs,0.5), coupling:"DC", probe:"1", bw:false, invert:false, pos:0},
   };
   state.tIndex = nearestIndex(ts, 100e-6);
+  state.hpos = 0;            // horizontal position (display divisions)
   state.tbmode = "MAIN"; state.depth = "4000"; state.acq = "NORMal";
   state.trig = {mode:"EDGE", sweep:"AUTO", source:"CHANnel1", slope:"RISIng", levelDiv:0};
   state.math = {enabled:false, operator:"ADD", source1:1, source2:2, scaleIndex:6, window:"HANNing", unit:"DB"};
@@ -150,6 +151,9 @@ function buildControls() {
     ()=>{state.tIndex=Math.min(spec.time_div_steps.length-1,state.tIndex+1); send({cmd:"timebase",scale:tdiv()});});
   root.append(section("Horizontal",[
     el("div",{class:"field"},[el("label",{},"Time / div"), tb]),
+    el("div",{class:"field"},[el("label",{},"Position"),
+      el("input",{id:"hpos-range",type:"range",min:-7,max:7,step:0.1,value:state.hpos||0,
+        oninput:e=>setHPos(parseFloat(e.target.value))})]),
     selectField("Mode",[["Y-T","MAIN"],["X-Y","XY"],["Roll","ROLL"]],state.tbmode,
       v=>{state.tbmode=v; send({cmd:"timebase",mode:v});}),
     selectField("Memory depth", spec.memory_depths.map(d=>[d>=1e6?(d/1e6+" M"):(d/1e3+" K"),String(d)]),
@@ -208,15 +212,18 @@ function buildControls() {
   ]));
 
   if (spec.has_awg) {
+    state.awg = state.awg || {on:false, wave:"SINE", freq:1000, amp:1, offset:0, duty:50};
     root.append(section("Wave Gen",[
-      el("div",{class:"btnrow"},[toggleBtn("Output",()=>state.awgOn,v=>{state.awgOn=v; send({cmd:"awg",on:v});})]),
+      el("div",{class:"btnrow"},[toggleBtn("Output",()=>state.awg.on,
+        v=>{state.awg.on=v; send({cmd:"awg",on:v}); updateGenChip();})]),
       selectField("Waveform",[["Sine","SINE"],["Square","SQUAre"],["Ramp","RAMP"],["Exp","EXP"],["Noise","NOISe"],["DC","DC"]],
-        "SINE", v=>send({cmd:"awg",type:v})),
-      numField("Frequency (Hz)",1000,v=>send({cmd:"awg",freq:v})),
-      numField("Amplitude (Vpp)",1,v=>send({cmd:"awg",amp:v})),
-      numField("Offset (V)",0,v=>send({cmd:"awg",offset:v})),
-      numField("Duty (%)",50,v=>send({cmd:"awg",duty:v})),
+        state.awg.wave, v=>{state.awg.wave=v; send({cmd:"awg",type:v}); updateGenChip();}),
+      numField("Frequency (Hz)",state.awg.freq,v=>{state.awg.freq=v; send({cmd:"awg",freq:v}); updateGenChip();}),
+      numField("Amplitude (Vpp)",state.awg.amp,v=>{state.awg.amp=v; send({cmd:"awg",amp:v}); updateGenChip();}),
+      numField("Offset (V)",state.awg.offset,v=>{state.awg.offset=v; send({cmd:"awg",offset:v});}),
+      numField("Duty (%)",state.awg.duty,v=>{state.awg.duty=v; send({cmd:"awg",duty:v});}),
     ]));
+    updateGenChip();
   }
 
   root.append(section("Display",[
@@ -423,6 +430,15 @@ function loadSetup(){
   }});
   inp.click();
 }
+function updateGenChip(){
+  const g=document.getElementById("gen-info"); if(!g||!spec) return;
+  if(!spec.has_awg){ g.classList.add("hidden"); return; }
+  const a=state.awg||{};
+  g.classList.remove("hidden");
+  g.classList.toggle("gen", !!a.on);          // blue when on
+  g.textContent = a.on ? `Gen ${(a.wave||"SINE").replace(/[a-z]/g,"")} ${eng(a.freq,"Hz")} ${eng(a.amp,"Vpp")}` : "Gen off";
+  g.style.opacity = a.on ? "1" : "0.6";
+}
 function applyState(){
   for(const ch of [1,2]){ const c=state.ch[ch];
     send({cmd:"channel",ch,display:c.display,scale:vdiv(ch),coupling:c.coupling,probe:parseInt(c.probe),bw:c.bw,invert:c.invert}); }
@@ -509,13 +525,14 @@ function drawGrid() {
   ctx.strokeStyle = COLORS.axis; ctx.beginPath();
   ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
 }
-function drawTrace(data, color, scale, posDiv) {
+function drawTrace(data, color, scale, posDiv, xshift=0) {
   if (!data || !data.length) return;
   ctx.strokeStyle = color; ctx.lineWidth = 1.3; ctx.beginPath();
   const n = data.length;
+  const isMath = (color === COLORS.math);
   for (let i=0;i<n;i++){
-    const xd = -HDIV/2 + i/(n-1)*HDIV;
-    const yd = (color===COLORS.math ? data[i] : data[i]/scale + posDiv);
+    const xd = -HDIV/2 + i/(n-1)*HDIV + xshift;
+    const yd = (isMath ? data[i] : data[i]/scale + posDiv);
     const y = div2pxY(Math.max(-VDIV/2, Math.min(VDIV/2, yd)));
     const x = x2px(xd);
     if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
@@ -527,45 +544,121 @@ function drawTrigger() {
   ctx.strokeStyle = COLORS.trig; ctx.lineWidth=1; ctx.setLineDash([6,4]);
   const y=div2pxY(d); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); ctx.setLineDash([]);
 }
-function drawZoomBand() {
-  if (!state.zoom || !state.zoom.on) return;
-  const widthDiv = Math.min(HDIV, HDIV * spec.time_div_steps[state.zoom.tIndex] / tdiv());
-  const centerDiv = state.zoom.pos || 0;
-  const x0 = x2px(centerDiv - widthDiv/2), x1 = x2px(centerDiv + widthDiv/2);
-  ctx.fillStyle = "rgba(58,122,254,0.15)";
-  ctx.fillRect(x0, 0, x1-x0, H);
-  ctx.strokeStyle = "rgba(58,122,254,0.7)"; ctx.lineWidth=1;
-  ctx.strokeRect(x0, 0, x1-x0, H);
+function setHPos(v){ state.hpos = v; send({cmd:"timebase", position: v * tdiv()}); }
+function drawHPosMarker(){
+  const x = x2px(state.hpos || 0);
+  ctx.fillStyle = COLORS.trig;
+  ctx.beginPath(); ctx.moveTo(x-6,1); ctx.lineTo(x+6,1); ctx.lineTo(x,11); ctx.closePath(); ctx.fill();
+}
+// volts of channel `ch` at a given on-screen division (accounts for hpos shift)
+function valueAtDiv(ch, screenDiv){
+  if(!frame) return null;
+  const c = frame.channels.find(c=>c.ch===ch); if(!c) return null;
+  const xd = screenDiv - (state.hpos||0);
+  const n = c.data.length, i = Math.round((xd+HDIV/2)/HDIV*(n-1));
+  return (i<0||i>=n) ? null : c.data[i];
+}
+// Real magnified (dual-window) view: bottom pane shows the selected window
+// stretched across the full width.
+function drawZoomPane(){
+  if(!state.zoom || !state.zoom.on || !frame) return;
+  const wDiv = Math.min(HDIV, HDIV * spec.time_div_steps[state.zoom.tIndex] / tdiv());
+  const cDiv = state.zoom.pos || 0;
+  const fromDiv = Math.max(-HDIV/2, cDiv - wDiv/2), toDiv = Math.min(HDIV/2, cDiv + wDiv/2);
+  const paneTop = Math.round(H*0.6), paneH = H - paneTop, hp = state.hpos||0;
+  // highlight band over the main (top) view
+  const bx0 = x2px(fromDiv+hp), bx1 = x2px(toDiv+hp);
+  ctx.fillStyle = "rgba(58,122,254,0.12)"; ctx.fillRect(bx0,0,bx1-bx0,paneTop);
+  ctx.strokeStyle = "rgba(58,122,254,0.7)"; ctx.lineWidth=1; ctx.strokeRect(bx0,0,bx1-bx0,paneTop);
+  // opaque zoom pane
+  ctx.fillStyle = COLORS.screen; ctx.fillRect(0,paneTop,W,paneH);
+  ctx.strokeStyle = "#3a4658"; ctx.strokeRect(0,paneTop,W,paneH);
+  ctx.strokeStyle = COLORS.grid; ctx.beginPath();
+  for(let i=0;i<=HDIV;i++){const x=i/HDIV*W; ctx.moveTo(x,paneTop); ctx.lineTo(x,H);} ctx.stroke();
+  ctx.strokeStyle = COLORS.axis; const midZ=paneTop+paneH/2;
+  ctx.beginPath(); ctx.moveTo(0,midZ); ctx.lineTo(W,midZ); ctx.stroke();
+  for(const c of frame.channels){
+    if(state.ch[c.ch] && !state.ch[c.ch].display) continue;
+    const n=c.data.length, posDiv=state.ch[c.ch]?state.ch[c.ch].pos:0;
+    const i0=Math.max(0,Math.floor((fromDiv+HDIV/2)/HDIV*(n-1)));
+    const i1=Math.min(n-1,Math.ceil((toDiv+HDIV/2)/HDIV*(n-1)));
+    if(i1<=i0) continue;
+    ctx.strokeStyle=COLORS[c.ch]; ctx.lineWidth=1.3; ctx.beginPath();
+    for(let i=i0;i<=i1;i++){
+      const x=(i-i0)/(i1-i0)*W;
+      const yd=Math.max(-VDIV/2,Math.min(VDIV/2,c.data[i]/c.scale+posDiv));
+      const y=midZ - yd*(paneH/VDIV);
+      if(i===i0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  const mag=(HDIV/Math.max(0.01,(toDiv-fromDiv))).toFixed(1);
+  ctx.fillStyle="#9aa4b1"; ctx.font="11px monospace"; ctx.textAlign="left";
+  ctx.fillText(`ZOOM ×${mag}  ${eng(spec.time_div_steps[state.zoom.tIndex],"s")}/div`, 6, paneTop+14);
+}
+function drawReadoutBox(lines){
+  if(!lines.length) return;
+  ctx.font="11px monospace"; ctx.textAlign="left";
+  const w=Math.max(...lines.map(l=>ctx.measureText(l).width))+16, h=lines.length*14+10;
+  const x=W-w-8, y=8;
+  ctx.fillStyle="rgba(6,11,16,0.9)"; ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle="#3a4658"; ctx.lineWidth=1; ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle="#e6e9ee"; lines.forEach((l,i)=>ctx.fillText(l,x+8,y+18+i*14));
 }
 function drawCursors() {
-  const c = state.cursor; if (c.mode==="OFF") return;
-  ctx.strokeStyle="#d8dee9"; ctx.lineWidth=1; ctx.setLineDash([4,4]);
-  const xOn = c.type==="X"||c.type==="XY"||c.mode==="TRACk";
-  const yOn = c.type==="Y"||c.type==="XY";
-  ctx.beginPath();
-  if (xOn){ [c.ax,c.bx].forEach(d=>{const x=x2px(d); ctx.moveTo(x,0); ctx.lineTo(x,H);}); }
-  if (yOn){ [c.ay,c.by].forEach(d=>{const y=div2pxY(d); ctx.moveTo(0,y); ctx.lineTo(W,y);}); }
-  ctx.stroke(); ctx.setLineDash([]);
-  // readout
-  const parts=[]; const t=tdiv(); const vs=vdiv(c.source);
-  if (xOn){ const dt=Math.abs(c.bx-c.ax)*t; parts.push("ΔX="+eng(dt,"s")); if(dt>0) parts.push("1/ΔX="+eng(1/dt,"Hz")); }
-  if (yOn){ parts.push("ΔY="+eng(Math.abs(c.ay-c.by)*vs,"V")); }
-  document.getElementById("cursor-readout").textContent = parts.join("  ");
+  const c = state.cursor;
+  const ro = document.getElementById("cursor-readout");
+  if (c.mode==="OFF"){ if(ro) ro.textContent=""; return; }
+  const track = c.mode==="TRACk";
+  const xOn = track || c.type==="X" || c.type==="XY";
+  const yOn = !track && (c.type==="Y" || c.type==="XY");
+  const tab=(x,y,lbl)=>{ ctx.setLineDash([]); ctx.fillStyle="#d8dee9";
+    ctx.fillRect(x-8,y-7,16,14); ctx.fillStyle="#0a0f14"; ctx.font="bold 10px monospace";
+    ctx.textAlign="center"; ctx.fillText(lbl,x,y+4); ctx.textAlign="left"; ctx.setLineDash([5,4]); };
+  ctx.lineWidth=1; ctx.setLineDash([5,4]); ctx.strokeStyle="#d8dee9";
+  if(xOn) [["A",c.ax],["B",c.bx]].forEach(([l,d])=>{ const x=x2px(d);
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); tab(x,7,l); });
+  if(yOn) [["A",c.ay],["B",c.by]].forEach(([l,d])=>{ const y=div2pxY(d);
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); tab(W-8,y,l); });
+  ctx.setLineDash([]);
+  const t=tdiv(), vs=vdiv(c.source), lines=[];
+  if(track){
+    const va=valueAtDiv(c.source,c.ax), vb=valueAtDiv(c.source,c.bx);
+    const posDiv=state.ch[c.source]?state.ch[c.source].pos:0;
+    [[c.ax,va],[c.bx,vb]].forEach(([d,v])=>{ if(v==null) return;
+      const x=x2px(d), y=div2pxY(v/vs+posDiv);
+      ctx.fillStyle=COLORS[c.source]; ctx.beginPath(); ctx.arc(x,y,4,0,6.29); ctx.fill(); });
+    lines.push(`A ${eng(c.ax*t,"s")}  ${va!=null?eng(va,"V"):"—"}`);
+    lines.push(`B ${eng(c.bx*t,"s")}  ${vb!=null?eng(vb,"V"):"—"}`);
+    const dt=Math.abs(c.bx-c.ax)*t; lines.push(`ΔX ${eng(dt,"s")}${dt>0?"  ("+eng(1/dt,"Hz")+")":""}`);
+    if(va!=null&&vb!=null) lines.push(`ΔY ${eng(Math.abs(va-vb),"V")}`);
+  } else {
+    if(xOn){ const dt=Math.abs(c.bx-c.ax)*t;
+      lines.push(`Ax ${eng(c.ax*t,"s")}`); lines.push(`Bx ${eng(c.bx*t,"s")}`);
+      lines.push(`ΔX ${eng(dt,"s")}`); if(dt>0) lines.push(`1/ΔX ${eng(1/dt,"Hz")}`); }
+    if(yOn){ lines.push(`Ay ${eng(c.ay*vs,"V")}`); lines.push(`By ${eng(c.by*vs,"V")}`);
+      lines.push(`ΔY ${eng(Math.abs(c.ay-c.by)*vs,"V")}`); }
+  }
+  drawReadoutBox(lines);
+  if(ro) ro.textContent = "Cursor: "+(track?"track":c.type)+" · CH"+c.source+" · drag A/B";
 }
 function render() {
   requestAnimationFrame(render);   // keep the loop alive regardless of below
   if (W !== canvas.parentElement.clientWidth || H !== canvas.parentElement.clientHeight) resizeCanvas();
   drawGrid();
   if (!spec) return;               // nothing else to draw until connected
+  const hpos = state.hpos || 0;
   if (frame) {
     for (const c of frame.channels) {
       if (state.ch[c.ch] && !state.ch[c.ch].display) continue;
-      drawTrace(c.data, COLORS[c.ch], c.scale, state.ch[c.ch]?state.ch[c.ch].pos:0);
+      drawTrace(c.data, COLORS[c.ch], c.scale, state.ch[c.ch]?state.ch[c.ch].pos:0, hpos);
     }
-    if (frame.math) drawTrace(frame.math, COLORS.math, 1, 0);
+    if (frame.math) drawTrace(frame.math, COLORS.math, 1, 0,
+                              state.math.operator==="FFT" ? 0 : hpos);
   }
   drawTrigger();
-  drawZoomBand();
+  drawHPosMarker();
+  drawZoomPane();
   drawCursors();
   // chrome
   document.getElementById("tb-chip").textContent = "H " + eng(tdiv(),"s");
@@ -583,9 +676,11 @@ function render() {
 let drag = null;
 canvas.addEventListener("pointerdown", e=>{
   const r=canvas.getBoundingClientRect(); const px=e.clientX-r.left, py=e.clientY-r.top;
+  const near=(a,b)=>Math.abs(a-b)<11;
+  // horizontal-position marker (orange ▼ at the very top)
+  if (py < 14 && near(px, x2px(state.hpos||0))) { drag="hpos"; canvas.setPointerCapture(e.pointerId); return; }
   const c=state.cursor; if (c.mode==="OFF") return;
-  const near=(a,b)=>Math.abs(a-b)<10;
-  const xOn=c.type==="X"||c.type==="XY"||c.mode==="TRACk", yOn=c.type==="Y"||c.type==="XY";
+  const xOn=c.type==="X"||c.type==="XY"||c.mode==="TRACk", yOn=c.mode!=="TRACk"&&(c.type==="Y"||c.type==="XY");
   if (xOn && near(px,x2px(c.ax))) drag="ax";
   else if (xOn && near(px,x2px(c.bx))) drag="bx";
   else if (yOn && near(py,div2pxY(c.ay))) drag="ay";
@@ -594,10 +689,27 @@ canvas.addEventListener("pointerdown", e=>{
 });
 canvas.addEventListener("pointermove", e=>{
   if (!drag) return; const r=canvas.getBoundingClientRect();
-  if (drag[0]==="a"||drag[0]==="b") {
-    if (drag[1]==="x") state.cursor[drag] = (e.clientX-r.left)/W*HDIV - HDIV/2;
+  const xdiv = (e.clientX-r.left)/W*HDIV - HDIV/2;
+  if (drag==="hpos") { state.hpos=Math.max(-7,Math.min(7,xdiv)); setHPos(state.hpos);
+    const s=document.getElementById("hpos-range"); if(s) s.value=state.hpos; }
+  else if (drag[0]==="a"||drag[0]==="b") {
+    if (drag[1]==="x") state.cursor[drag] = xdiv;
     else state.cursor[drag] = -((e.clientY-r.top)/H*VDIV - VDIV/2);
   }
+});
+canvas.addEventListener("pointermove", e=>{
+  // hover affordance: resize cursor near draggable handles
+  if (drag) return; const r=canvas.getBoundingClientRect();
+  const px=e.clientX-r.left, py=e.clientY-r.top, near=(a,b)=>Math.abs(a-b)<11;
+  const c=state.cursor;
+  let cur="crosshair";
+  if (py<14 && near(px,x2px(state.hpos||0))) cur="ew-resize";
+  else if (c.mode!=="OFF"){
+    const xOn=c.type==="X"||c.type==="XY"||c.mode==="TRACk", yOn=c.mode!=="TRACk"&&(c.type==="Y"||c.type==="XY");
+    if (xOn && (near(px,x2px(c.ax))||near(px,x2px(c.bx)))) cur="ew-resize";
+    else if (yOn && (near(py,div2pxY(c.ay))||near(py,div2pxY(c.by)))) cur="ns-resize";
+  }
+  canvas.style.cursor=cur;
 });
 canvas.addEventListener("pointerup", ()=>drag=null);
 

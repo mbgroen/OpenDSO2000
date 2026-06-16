@@ -44,7 +44,8 @@ STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 RES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "res")
 
 # Streaming downsample target (min/max pairs => 2x columns of points).
-STREAM_COLUMNS = 700
+# Higher value = finer traces and more usable zoom, at a little more bandwidth.
+STREAM_COLUMNS = 1000
 
 # Measurements pushed when the table is enabled (scpi item, label, unit).
 MEAS_ITEMS = [

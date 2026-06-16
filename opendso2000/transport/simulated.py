@@ -234,7 +234,9 @@ class SimulatedTransport(Transport):
         srate = points / total_time if total_time > 0 else 1e8
         srate = min(srate, 999_999_999)            # keep within the 9-digit field
         t = np.linspace(0, total_time, points, endpoint=False)
-        freq = 3.0 / total_time if total_time > 0 else 1.0   # ~3 cycles on screen
+        # Fixed test-signal frequency (independent of the time base), so changing
+        # Time/div visibly changes how many cycles are shown — like a real input.
+        freq = 2000.0
 
         blocks = []
         for ch in enabled:
