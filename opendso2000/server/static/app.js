@@ -239,11 +239,16 @@ function buildControls() {
 
   // toolbar
   const run = document.getElementById("run-btn");
-  run.onclick = () => { state.run=!state.run; run.textContent=state.run?"Run":"Stop";
-    run.classList.toggle("stopped",!state.run); send({cmd:"run",on:state.run});
+  function updateRunBtn() {
+    run.textContent = state.run ? "⏹ Stop" : "▶ Run";
+    run.classList.toggle("running", state.run);
+    run.classList.toggle("stopped", !state.run);
+  }
+  run.onclick = () => { state.run=!state.run; updateRunBtn(); send({cmd:"run",on:state.run});
     if(!state.run) setTrigChip("Stop"); };
   document.getElementById("single-btn").onclick = ()=>{ send({cmd:"single"});
-    state.run=false; run.textContent="Stop"; run.classList.add("stopped"); setTrigChip("Stop"); };
+    state.run=false; updateRunBtn(); setTrigChip("Stop"); };
+  updateRunBtn();
   document.getElementById("auto-btn").onclick = ()=>send({cmd:"autoset"});
   document.getElementById("force-btn").onclick = ()=>send({cmd:"force"});
   document.getElementById("device-btn").onclick = async ()=>{
@@ -465,9 +470,13 @@ function openWS() {
 }
 function setTrigChip(label){
   const c=document.getElementById("trig-chip"); if(!c) return;
-  c.textContent=label;
-  c.classList.toggle("ok", label==="Trig'd");          // green only when triggered
-  c.style.opacity = label==="Stop" ? "0.7" : "1";
+  if(label==="Trig'd"){
+    c.textContent="● Trig'd"; c.className="chip ok";
+  } else if(label==="Stop"){
+    c.textContent="■ Stopped"; c.className="chip trig-stopped";
+  } else {
+    c.textContent="◌ Auto"; c.className="chip trig-auto";
+  }
 }
 function onJSON(m) {
   if (m.type === "status") {
@@ -688,10 +697,9 @@ function render() {
   if (frame) {
     for (const c of frame.channels) {
       if (state.ch[c.ch] && !state.ch[c.ch].display) continue;
-      drawTrace(c.data, COLORS[c.ch], c.scale, state.ch[c.ch]?state.ch[c.ch].pos:0, hpos);
+      drawTrace(c.data, COLORS[c.ch], c.scale, state.ch[c.ch]?state.ch[c.ch].pos:0, 0);
     }
-    if (frame.math) drawTrace(frame.math, COLORS.math, 1, 0,
-                              state.math.operator==="FFT" ? 0 : hpos);
+    if (frame.math) drawTrace(frame.math, COLORS.math, 1, 0, 0);
   }
   drawAwgOverlay();
   drawTrigger();

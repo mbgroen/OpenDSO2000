@@ -232,7 +232,11 @@ class SimulatedTransport(Transport):
         total_time = 14 * tdiv
         srate = points / total_time if total_time > 0 else 1e8
         srate = min(srate, 999_999_999)            # keep within the 9-digit field
-        t = np.linspace(0, total_time, points, endpoint=False)
+        # Honour horizontal position: shift the generated time window so the
+        # waveform data itself moves rather than just being pixel-shifted in JS.
+        pos = float(self._state.get(":TIMebase:POSition", 0.0))
+        t_start = pos - total_time / 2
+        t = np.linspace(t_start, t_start + total_time, points, endpoint=False)
         # Fixed test-signal frequency (independent of the time base), so changing
         # Time/div visibly changes how many cycles are shown — like a real input.
         freq = 2000.0

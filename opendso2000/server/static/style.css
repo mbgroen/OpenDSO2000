@@ -17,8 +17,9 @@ button{background:#2f343d;border:1px solid #3c424d;border-radius:6px;color:var(-
   padding:6px 10px;cursor:pointer;font-size:13px}
 button:hover{background:#393f4a}
 button:active{background:var(--accent);border-color:var(--accent)}
-button.primary,button.run{background:var(--accent);border-color:var(--accent);color:#fff}
-button.run.stopped{background:#27a34a;border-color:#27a34a}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.run.running{background:#d94040;border-color:#d94040;color:#fff}
+button.run.stopped{background:var(--accent);border-color:var(--accent);color:#fff}
 button.toggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
 select,input[type=number]{background:#14171c;border:1px solid #3c424d;border-radius:5px;
   color:var(--text);padding:4px 6px;font-size:13px;width:100%}
@@ -45,6 +46,8 @@ input[type=range]{width:100%}
 .logo{color:var(--accent);font-weight:800;font-style:italic;font-size:15px}
 .chip{background:#1a2029;border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:11px}
 .chip.ok{background:#27a34a;color:#0a0f14}
+.chip.trig-auto{background:#c87020;color:#fff}
+.chip.trig-stopped{background:#3c424d;color:#9aa4b1}
 .chip.math{background:var(--math);color:#0a0f14}
 .chip.c1{background:var(--ch1);color:#0a0f14}
 .chip.c2{background:var(--ch2);color:#0a0f14}
